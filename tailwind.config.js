@@ -11,6 +11,16 @@ module.exports = {
         background: "var(--background)",
         foreground: "var(--foreground)",
       },
+      animation: {
+        'spin-slow': 'spin 10s linear infinite',
+      },
+      maxWidth: {
+        '7xl': '80rem',
+      },
+      maxHeight: {
+        '70vh': '70vh',
+        '60vh': '60vh',
+      }
     },
   },
   plugins: [],

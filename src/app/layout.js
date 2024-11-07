@@ -1,5 +1,7 @@
 import localFont from "next/font/local";
+import { ConfigProvider } from 'antd';
 import "./globals.css";
+import 'antd/dist/reset.css';
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -23,7 +25,9 @@ export default function RootLayout({ children }) {
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <ConfigProvider>
+          {children}
+        </ConfigProvider>
       </body>
     </html>
   );
