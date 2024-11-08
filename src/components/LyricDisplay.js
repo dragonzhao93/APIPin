@@ -5,7 +5,8 @@ import { useRef, useEffect } from 'react';
 export default function LyricDisplay({ 
   lyrics = [], 
   currentLyricIndex, 
-  onLyricClick 
+  onLyricClick,
+  className = '' 
 }) {
   const lyricsContainerRef = useRef(null);
 
@@ -32,8 +33,11 @@ export default function LyricDisplay({
   return (
     <div 
       ref={lyricsContainerRef} 
-      className="h-[calc(100vh-400px)] overflow-y-auto p-4 bg-gray-100 rounded-lg"
-      style={{ scrollbarWidth: 'thin' }}
+      className={`h-full overflow-y-auto p-4 rounded-lg ${className}`}
+      style={{ 
+        scrollbarWidth: 'thin',
+        scrollBehavior: 'smooth'
+      }}
     >
       {lyrics.map((lyric, index) => (
         <div 
@@ -46,9 +50,10 @@ export default function LyricDisplay({
             transition-all 
             duration-300 
             text-center
+            my-4
             ${index === currentLyricIndex 
-              ? 'bg-blue-200 text-blue-800 font-bold scale-105' 
-              : 'hover:bg-gray-200 hover:scale-102'}
+              ? 'bg-blue-500/90 text-white font-bold scale-105 shadow-sm' 
+              : 'text-gray-600 hover:bg-gray-100/80'}
           `}
         >
           {lyric.name}

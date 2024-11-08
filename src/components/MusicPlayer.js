@@ -8,9 +8,8 @@ import {
   PauseCircleOutlined,
   ArrowLeftOutlined 
 } from '@ant-design/icons';
-import VinylRecord from './VinylRecord';
-import RawDataDisplay from './RawDataDisplay';
 import SearchPanel from './SearchPanel';
+import GlobalAudioPlayer from './GlobalAudioPlayer';
 
 const { Title, Text } = Typography;
 
@@ -20,37 +19,58 @@ export default function MusicPlayer() {
   const [searchTerm, setSearchTerm] = useState('');
   const [songs, setSongs] = useState([]);
   const [currentSong, setCurrentSong] = useState(null);
-  const [platform, setPlatform] = useState('wy');
-  const [quality, setQuality] = useState(5);
   const [isPlaying, setIsPlaying] = useState(false);
   const [rawResponseData, setRawResponseData] = useState(null);
-  const [showSearch, setShowSearch] = useState(true);
 
   const searchMusic = async () => {
     try {
-      let apiUrl;
-      if (platform === 'qq') {
-        apiUrl = quality 
-          ? `${API_BASE_URL}/qqdg/?word=${searchTerm}&q=${quality}`
-          : `${API_BASE_URL}/qqdg/?word=${searchTerm}`;
-      } else {
-        apiUrl = `${API_BASE_URL}/wydg/?msg=${searchTerm}`;
+      const wyResponse = fetch(`${API_BASE_URL}/wydg/?msg=${searchTerm}`);
+      const qqResponse = fetch(`${API_BASE_URL}/qqdg/?word=${searchTerm}`);
+      
+      const [wyData, qqData] = await Promise.all([
+        (await wyResponse).json(),
+        (await qqResponse).json()
+      ]);
+
+      let combinedSongs = [];
+      
+      if (wyData.code === 200) {
+        const wySongs = wyData.data.map(song => ({
+          ...song,
+          platform: 'wy',
+          name: song.name || song.song,
+          singer: song.singer || song.author
+        }));
+        combinedSongs.push(...wySongs);
       }
 
-      const response = await fetch(apiUrl);
-      const data = await response.json();
+      if (qqData.code === 200) {
+        const qqSongs = (Array.isArray(qqData.data) ? qqData.data : [qqData.data]).map(song => ({
+          ...song,
+          platform: 'qq',
+          name: song.song,
+          singer: song.singer
+        }));
+        combinedSongs.push(...qqSongs);
+      }
 
-      setRawResponseData(data);
+      const interleavedSongs = [];
+      const maxLength = Math.max(
+        combinedSongs.filter(s => s.platform === 'wy').length,
+        combinedSongs.filter(s => s.platform === 'qq').length
+      );
 
-      if (data.code === 200) {
-        const songList = platform === 'qq' 
-          ? (Array.isArray(data.data) ? data.data : [data.data])
-          : data.data;
+      for (let i = 0; i < maxLength; i++) {
+        const wySong = combinedSongs.find((s, index) => s.platform === 'wy' && 
+          combinedSongs.filter(x => x.platform === 'wy').indexOf(s) === i);
+        const qqSong = combinedSongs.find((s, index) => s.platform === 'qq' && 
+          combinedSongs.filter(x => x.platform === 'qq').indexOf(s) === i);
         
-        setSongs(songList);
-      } else {
-        message.error('未找到歌曲');
+        if (wySong) interleavedSongs.push(wySong);
+        if (qqSong) interleavedSongs.push(qqSong);
       }
+
+      setSongs(interleavedSongs);
     } catch (error) {
       message.error('搜索失败');
       console.error(error);
@@ -78,13 +98,11 @@ export default function MusicPlayer() {
     }
   };
 
-  const playSong = async (song, index) => {
+  const playSong = async (song, index, quality = 5) => {
     try {
       let apiUrl;
-      if (platform === 'qq') {
-        apiUrl = quality 
-          ? `${API_BASE_URL}/qqdg/?word=${searchTerm}&n=${index + 1}&q=${quality}`
-          : `${API_BASE_URL}/qqdg/?word=${searchTerm}&n=${index + 1}`;
+      if (song.platform === 'qq') {
+        apiUrl = `${API_BASE_URL}/qqdg/?word=${searchTerm}&n=${index + 1}&q=${quality}`;
       } else {
         apiUrl = `${API_BASE_URL}/wydg/?msg=${searchTerm}&n=${index + 1}`;
       }
@@ -95,7 +113,7 @@ export default function MusicPlayer() {
       setRawResponseData(data);
 
       if (data.code === 200) {
-        const processedSong = platform === 'qq' 
+        const processedSong = song.platform === 'qq' 
           ? {
               name: data.data.song,
               singer: data.data.singer,
@@ -126,53 +144,39 @@ export default function MusicPlayer() {
     setIsPlaying(!isPlaying);
   };
 
-  const handlePlaySong = async (song, index) => {
-    await playSong(song, index);
-    setShowSearch(false);
+  const handlePlaySong = async (song, index, quality) => {
+    setIsPlaying(false); // 先暂停当前播放
+    await playSong(song, index, quality);
+    setIsPlaying(true);  // 新歌曲加载后自动播放
   };
 
   return (
-    <Card 
-      className="music-player-card max-w-7xl mx-auto"
-      style={{ 
-        background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-        borderRadius: '16px',
-        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-      }}
-    >
-      {showSearch ? (
+    <>
+      <Card 
+        className="music-player-card mx-auto h-[calc(100vh-120px)] md:max-w-7xl"
+        style={{ 
+          background: 'var(--background)',
+          borderRadius: '12px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          margin: '16px'
+        }}
+      >
         <SearchPanel 
           searchTerm={searchTerm}
           setSearchTerm={setSearchTerm}
-          platform={platform}
-          setPlatform={setPlatform}
-          quality={quality}
-          setQuality={setQuality}
           songs={songs}
           onSearch={searchMusic}
           onPlaySong={handlePlaySong}
         />
-      ) : (
-        <div>
-          <Button 
-            icon={<ArrowLeftOutlined />} 
-            onClick={() => setShowSearch(true)}
-            className="mb-4"
-          >
-            返回搜索
-          </Button>
-          <div className="flex flex-col lg:flex-row gap-6">
-            <div className="w-full">
-              <VinylRecord 
-                song={currentSong} 
-                isPlaying={isPlaying}
-                onPlayPause={handlePlayPause}
-                lyrics={currentSong?.lyrics}
-              />
-            </div>
-          </div>
-        </div>
+      </Card>
+      
+      {currentSong && (
+        <GlobalAudioPlayer 
+          song={currentSong}
+          isPlaying={isPlaying}
+          onPlayPause={handlePlayPause}
+        />
       )}
-    </Card>
+    </>
   );
 } 
