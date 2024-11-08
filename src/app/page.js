@@ -1,10 +1,17 @@
-import MusicPlayer from '@/components/MusicPlayer';
+import { MusicProvider } from '@/contexts/MusicContext';
+import MusicContainer from '@/components/MusicContainer';
+import GlobalAudioPlayer from '@/components/GlobalAudioPlayer';
 
 export default function Home() {
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl mb-4">APIPin | 真的能听歌</h1>
-      <MusicPlayer />
-    </div>
+    <MusicProvider>
+      <div className="h-screen flex flex-col overflow-hidden">
+        <h1 className="text-2xl p-4">APIPin | 真的能听歌</h1>
+        <div className="flex-1 overflow-hidden">
+          <MusicContainer />
+        </div>
+        <GlobalAudioPlayer />
+      </div>
+    </MusicProvider>
   );
 }

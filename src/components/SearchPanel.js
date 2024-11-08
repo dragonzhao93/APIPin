@@ -2,7 +2,7 @@
 
 import { Input, Button, List, Select, Tag } from 'antd';
 import { SearchOutlined, PlayCircleOutlined, CustomerServiceOutlined, FieldTimeOutlined, FileOutlined, DashboardOutlined } from '@ant-design/icons';
-import { useState } from 'react';
+import { useMusic } from '@/contexts/MusicContext';
 
 const QUALITY_OPTIONS = [
   { value: 5, label: '标准音质' },
@@ -52,42 +52,37 @@ const PaymentTag = ({ payType }) => {
   );
 };
 
-export default function SearchPanel({ 
-  searchTerm,
-  setSearchTerm,
-  songs,
-  onSearch,
-  onPlaySong
-}) {
-  const [selectedQuality, setSelectedQuality] = useState(5);
-
-  // 计算每个歌曲在其平台中的序号
-  const getPlatformIndex = (song, index) => {
-    return songs
-      .slice(0, index + 1)
-      .filter(s => s.platform === song.platform)
-      .length;
-  };
+export default function SearchPanel({ showSearchInput = true }) {
+  const { 
+    searchTerm, 
+    setSearchTerm,
+    songs,
+    setSongs,
+    setCurrentSong,
+    setIsPlaying,
+    selectedQuality,
+    setSelectedQuality,
+    onSearch,
+    onPlaySong
+  } = useMusic();
 
   return (
-    <div className="w-full">
-      <div className="flex flex-col sm:flex-row gap-2 mb-4">
-        <Input.Search
-          placeholder="搜索歌曲"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          onSearch={onSearch}
-          enterButton
-          className="flex-grow"
-        />
-      </div>
+    <div className="h-full flex flex-col">
+      {showSearchInput && (
+        <div className="flex flex-col sm:flex-row gap-2 mb-4">
+          <Input.Search
+            placeholder="搜索歌曲"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onSearch={onSearch}
+            enterButton
+            className="flex-grow"
+          />
+        </div>
+      )}
 
       <List
-        className="overflow-y-auto custom-scrollbar"
-        style={{ 
-          maxHeight: 'calc(100vh - 240px)',
-          paddingRight: '8px'
-        }}
+        className="flex-1 overflow-y-auto custom-scrollbar"
         itemLayout="horizontal"
         dataSource={songs}
         renderItem={(song, index) => (
@@ -178,7 +173,7 @@ export default function SearchPanel({
               <Button 
                 type="text" 
                 icon={<PlayCircleOutlined />} 
-                onClick={() => onPlaySong(song, getPlatformIndex(song, index) - 1, selectedQuality)}
+                onClick={() => onPlaySong(song, song.searchIndex, selectedQuality)}
               >
                 播放
               </Button>

@@ -2,8 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button, Slider, Typography, Drawer } from 'antd';
-import { PlayCircleOutlined, PauseCircleOutlined, UpOutlined, DownOutlined, CustomerServiceOutlined } from '@ant-design/icons';
+import { PlayCircleOutlined, PauseCircleOutlined, UpOutlined, DownOutlined, CustomerServiceOutlined, StarOutlined, StarFilled } from '@ant-design/icons';
 import LyricDisplay from './LyricDisplay';
+import { useMusic } from '@/contexts/MusicContext';
 
 const { Text } = Typography;
 
@@ -98,7 +99,15 @@ const ProgressSlider = ({ value, max, onChange, disabled }) => {
   );
 };
 
-export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
+export default function GlobalAudioPlayer() {
+  const { 
+    currentSong, 
+    isPlaying, 
+    setIsPlaying, 
+    toggleFavorite, 
+    isFavorite 
+  } = useMusic();
+
   const [expanded, setExpanded] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -123,17 +132,47 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
       audioElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audioElement.removeEventListener('timeupdate', handleTimeUpdate);
     };
-  }, [song?.url]);
+  }, [currentSong?.url]);
 
   useEffect(() => {
+    if (currentSong?.url) {
+      // 当有新的歌曲时，等待音频加载完成后播放
+      const audioElement = audioRef.current;
+      audioElement.load(); // 强制重新加载
+      
+      const playWhenReady = () => {
+        audioElement.play()
+          .then(() => {
+            setIsPlaying(true);
+          })
+          .catch(error => {
+            console.error('Playback failed:', error);
+            setIsPlaying(false);
+          });
+      };
+
+      audioElement.addEventListener('loadeddata', playWhenReady);
+      return () => {
+        audioElement.removeEventListener('loadeddata', playWhenReady);
+      };
+    } else {
+      setIsPlaying(false);
+    }
+  }, [currentSong?.url, setIsPlaying]);
+
+  useEffect(() => {
+    const audioElement = audioRef.current;
+    if (!audioElement) return;
+
     if (isPlaying) {
-      audioRef.current.play().catch(error => {
+      audioElement.play().catch(error => {
         console.error('Playback failed:', error);
+        setIsPlaying(false);
       });
     } else {
-      audioRef.current.pause();
+      audioElement.pause();
     }
-  }, [isPlaying]);
+  }, [isPlaying, setIsPlaying]);
 
   const handleSliderChange = (value) => {
     audioRef.current.currentTime = value;
@@ -148,11 +187,11 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
   };
 
   useEffect(() => {
-    if (!song?.lyrics?.length) return;
+    if (!currentSong?.lyrics?.length) return;
     
     const findCurrentLyricIndex = (time) => {
-      for (let i = song.lyrics.length - 1; i >= 0; i--) {
-        const lyricTime = song.lyrics[i].time.split(':').reduce((acc, val) => acc * 60 + parseFloat(val), 0);
+      for (let i = currentSong.lyrics.length - 1; i >= 0; i--) {
+        const lyricTime = currentSong.lyrics[i].time.split(':').reduce((acc, val) => acc * 60 + parseFloat(val), 0);
         if (time >= lyricTime) return i;
       }
       return -1;
@@ -166,21 +205,33 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
       }
     };
 
-    audioRef.current.addEventListener('timeupdate', handleTimeUpdate);
-    return () => audioRef.current.removeEventListener('timeupdate', handleTimeUpdate);
-  }, [song?.lyrics, currentLyricIndex]);
+    const audioElement = audioRef.current;
+    if (audioElement) {
+      audioElement.addEventListener('timeupdate', handleTimeUpdate);
+      return () => {
+        if (audioElement) {
+          audioElement.removeEventListener('timeupdate', handleTimeUpdate);
+        }
+      };
+    }
+  }, [currentSong?.lyrics, currentLyricIndex]);
 
   // 添加音频结束事件监听
   useEffect(() => {
     const audioElement = audioRef.current;
+    if (!audioElement) return;
     
     const handleEnded = () => {
-      onPlayPause(false); // 通知父组件停止播放
+      setIsPlaying(false); // 通知父组件停止播放
     };
 
     audioElement.addEventListener('ended', handleEnded);
-    return () => audioElement.removeEventListener('ended', handleEnded);
-  }, [onPlayPause]);
+    return () => {
+      if (audioElement) {
+        audioElement.removeEventListener('ended', handleEnded);
+      }
+    };
+  }, [setIsPlaying]);
 
   // 更新封面图片样式
   const coverStyles = {
@@ -212,7 +263,7 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
           
           <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden items-center justify-center" 
                style={{ maxHeight: 'calc(100vh - 180px)' }}>
-            {song ? (
+            {currentSong ? (
               <>
                 <div className="flex-1 flex flex-col items-center justify-center min-h-[300px]">
                   <div 
@@ -222,22 +273,32 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
                     }}
                   >
                     <img 
-                      src={song?.cover || '/default-cover.jpg'}
-                      alt={song?.name}
+                      src={currentSong?.cover || '/default-cover.jpg'}
+                      alt={currentSong?.name}
                       className="w-full h-full object-cover"
                       style={coverStyles}
                     />
                   </div>
                   
                   <div className="mt-6 text-center">
-                    <Text strong className="text-lg block mb-1">{song?.name}</Text>
-                    <Text type="secondary">{song?.singer}</Text>
+                    <div className="flex items-center justify-center gap-2">
+                      <Text strong className="text-lg">{currentSong?.name}</Text>
+                      {currentSong && (
+                        <Button
+                          type="text"
+                          icon={isFavorite(currentSong) ? <StarFilled /> : <StarOutlined />}
+                          onClick={() => toggleFavorite(currentSong)}
+                          className="hover:scale-105 transition-transform"
+                        />
+                      )}
+                    </div>
+                    <Text type="secondary">{currentSong?.singer}</Text>
                   </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto">
                   <LyricDisplay 
-                    lyrics={song?.lyrics || []}
+                    lyrics={currentSong?.lyrics || []}
                     currentLyricIndex={currentLyricIndex}
                     onLyricClick={handleLyricClick}
                   />
@@ -259,7 +320,7 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
                 value={currentTime}
                 max={duration || 100}
                 onChange={handleSliderChange}
-                disabled={!song}
+                disabled={!currentSong}
               />
               <Text className="w-12">{formatTime(duration)}</Text>
             </div>
@@ -274,8 +335,8 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
                 ) : (
                   <PlayCircleOutlined style={{ fontSize: '20px' }} />
                 )}
-                onClick={onPlayPause}
-                disabled={!song}
+                onClick={() => setIsPlaying(!isPlaying)}
+                disabled={!currentSong}
                 className="hover:scale-105 transition-transform duration-200 disabled:opacity-50"
                 style={{
                   width: '40px',
@@ -300,10 +361,10 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
           />
           
           <div className="relative w-10 h-10 rounded-full overflow-hidden shadow-sm">
-            {song ? (
+            {currentSong ? (
               <img 
-                src={song.cover || '/default-cover.jpg'} 
-                alt={song.name}
+                src={currentSong.cover || '/default-cover.jpg'} 
+                alt={currentSong.name}
                 className="w-full h-full object-cover"
                 style={coverStyles}
               />
@@ -317,8 +378,17 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1.5">
               <Text className="text-sm truncate flex-1 text-gray-800">
-                {song ? `${song.name} - ${song.singer}` : '未播放任何歌曲'}
+                {currentSong ? `${currentSong.name} - ${currentSong.singer}` : '未播放任何歌曲'}
               </Text>
+              {currentSong && (
+                <Button
+                  type="text"
+                  size="small"
+                  icon={isFavorite(currentSong) ? <StarFilled /> : <StarOutlined />}
+                  onClick={() => toggleFavorite(currentSong)}
+                  className="ml-2 hover:scale-105 transition-transform"
+                />
+              )}
               <Text className="text-xs ml-2 whitespace-nowrap text-gray-500">
                 {formatTime(currentTime)} / {formatTime(duration)}
               </Text>
@@ -327,7 +397,7 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
               value={currentTime}
               max={duration || 100}
               onChange={handleSliderChange}
-              disabled={!song}
+              disabled={!currentSong}
             />
           </div>
 
@@ -340,8 +410,8 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
             ) : (
               <PlayCircleOutlined style={{ fontSize: '20px' }} />
             )}
-            onClick={onPlayPause}
-            disabled={!song}
+            onClick={() => setIsPlaying(!isPlaying)}
+            disabled={!currentSong}
             className="hover:scale-105 transition-transform duration-200 disabled:opacity-50"
             style={{
               width: '40px',
@@ -358,9 +428,9 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
 
       <audio 
         ref={audioRef}
-        src={song?.url}
+        src={currentSong?.url}
         crossOrigin="anonymous"
-        preload="metadata"
+        preload="auto" // 改为 auto 以预加载音频
         className="hidden"
       />
 
