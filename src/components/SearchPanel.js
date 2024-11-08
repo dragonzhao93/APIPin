@@ -34,7 +34,7 @@ export default function SearchPanel({
   onSearch,
   onPlaySong
 }) {
-  const [selectedQuality, setSelectedQuality] = useState(12);
+  const [selectedQuality, setSelectedQuality] = useState(9);
 
   // 计算每个歌曲在其平台中的序号
   const getPlatformIndex = (song, index) => {
@@ -93,10 +93,21 @@ export default function SearchPanel({
                   size="small"
                   value={selectedQuality}
                   onChange={(value) => setSelectedQuality(value)}
-                  className="w-24"
+                  className="w-28"
                   bordered={false}
                   dropdownMatchSelectWidth={false}
-                  options={QUALITY_OPTIONS}
+                  options={QUALITY_OPTIONS.map(opt => ({
+                    value: opt.value,
+                    label: opt.label,
+                  }))}
+                  dropdownRender={menu => (
+                    <div>
+                      {menu}
+                      <div className="px-2 py-1 text-xs text-gray-500 border-t">
+                        {QUALITY_OPTIONS.find(opt => opt.value === selectedQuality)?.label}
+                      </div>
+                    </div>
+                  )}
                 />
               )}
 

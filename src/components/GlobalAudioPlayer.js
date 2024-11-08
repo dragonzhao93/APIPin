@@ -111,6 +111,25 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
     return () => audioRef.current.removeEventListener('timeupdate', handleTimeUpdate);
   }, [song?.lyrics, currentLyricIndex]);
 
+  // 添加音频结束事件监听
+  useEffect(() => {
+    const audioElement = audioRef.current;
+    
+    const handleEnded = () => {
+      onPlayPause(false); // 通知父组件停止播放
+    };
+
+    audioElement.addEventListener('ended', handleEnded);
+    return () => audioElement.removeEventListener('ended', handleEnded);
+  }, [onPlayPause]);
+
+  // 更新封面图片样式
+  const coverStyles = {
+    animation: isPlaying ? 'spin 20s linear infinite' : 'none',
+    transform: 'rotate(0deg)',
+    transition: 'all 0.5s ease-out' // 添加过渡效果，使停止更平滑
+  };
+
   return (
     <>
       <div 
@@ -134,9 +153,9 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
               className="self-start mb-2"
             />
             
-            <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden">
-              {/* Cover Art Section */}
-              <div className="flex-1 flex flex-col items-center justify-center">
+            <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden" 
+                 style={{ maxHeight: 'calc(100vh - 180px)' }}>
+              <div className="flex-1 flex flex-col items-center justify-center min-h-[300px]">
                 <div 
                   className="relative w-48 h-48 md:w-64 md:h-64 rounded-full overflow-hidden"
                   style={{
@@ -147,10 +166,7 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
                     src={song?.cover || '/default-cover.jpg'}
                     alt={song?.name}
                     className="w-full h-full object-cover"
-                    style={{
-                      animation: isPlaying ? 'spin 20s linear infinite' : 'none',
-                      transform: 'rotate(0deg)'
-                    }}
+                    style={coverStyles}
                   />
                 </div>
                 
@@ -160,8 +176,7 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
                 </div>
               </div>
 
-              {/* Lyrics Section */}
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 overflow-y-auto">
                 <LyricDisplay 
                   lyrics={song?.lyrics || []}
                   currentLyricIndex={currentLyricIndex}
@@ -170,8 +185,7 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
               </div>
             </div>
 
-            {/* Controls */}
-            <div className="mt-auto pt-4">
+            <div className="h-[120px] flex flex-col justify-end py-4">
               <div className="flex items-center gap-4">
                 <Text className="w-12 text-right">{formatTime(currentTime)}</Text>
                 <Slider 
@@ -190,13 +204,11 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
                   type="primary" 
                   shape="circle"
                   size="middle"
-                  icon={
-                    isPlaying ? (
-                      <PauseCircleOutlined style={{ fontSize: '20px' }} />
-                    ) : (
-                      <PlayCircleOutlined style={{ fontSize: '20px' }} />
-                    )
-                  }
+                  icon={isPlaying ? (
+                    <PauseCircleOutlined style={{ fontSize: '20px' }} />
+                  ) : (
+                    <PlayCircleOutlined style={{ fontSize: '20px' }} />
+                  )}
                   onClick={onPlayPause}
                   disabled={!song}
                   className="hover:scale-105 transition-transform duration-200"
@@ -207,7 +219,7 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
                     alignItems: 'center',
                     justifyContent: 'center',
                     boxShadow: '0 2px 8px rgba(22, 119, 255, 0.15)',
-                    background: isPlaying ? '#1677ff' : '#1677ff'
+                    background: '#1677ff'
                   }}
                 />
               </div>
@@ -227,9 +239,7 @@ export default function GlobalAudioPlayer({ song, isPlaying, onPlayPause }) {
                 src={song?.cover || '/default-cover.jpg'} 
                 alt={song?.name || '未播放'}
                 className="w-full h-full object-cover"
-                style={{
-                  animation: isPlaying ? 'spin 20s linear infinite' : 'none'
-                }}
+                style={coverStyles}
               />
             </div>
             
