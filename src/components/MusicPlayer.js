@@ -10,10 +10,9 @@ import {
 } from '@ant-design/icons';
 import SearchPanel from './SearchPanel';
 import GlobalAudioPlayer from './GlobalAudioPlayer';
+import { musicApi, fetchApi } from '../services/api';
 
 const { Title, Text } = Typography;
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 export default function MusicPlayer() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,18 +23,15 @@ export default function MusicPlayer() {
 
   const searchMusic = async () => {
     try {
-      const wyResponse = fetch(`${API_BASE_URL}/wydg/?msg=${searchTerm}`);
-      const qqResponse = fetch(`${API_BASE_URL}/qqdg/?word=${searchTerm}`);
-      
-      const [wyData, qqData] = await Promise.all([
-        (await wyResponse).json(),
-        (await qqResponse).json()
+      const [wyResult, qqResult] = await Promise.all([
+        fetchApi(musicApi.search.wy(searchTerm)),
+        fetchApi(musicApi.search.qq(searchTerm))
       ]);
 
       let combinedSongs = [];
       
-      if (wyData.code === 200) {
-        const wySongs = wyData.data.map(song => ({
+      if (wyResult.success && wyResult.data.code === 200) {
+        const wySongs = wyResult.data.data.map(song => ({
           ...song,
           platform: 'wy',
           name: song.name || song.song,
@@ -44,13 +40,14 @@ export default function MusicPlayer() {
         combinedSongs.push(...wySongs);
       }
 
-      if (qqData.code === 200) {
-        const qqSongs = (Array.isArray(qqData.data) ? qqData.data : [qqData.data]).map(song => ({
-          ...song,
-          platform: 'qq',
-          name: song.song,
-          singer: song.singer
-        }));
+      if (qqResult.success && qqResult.data.code === 200) {
+        const qqSongs = (Array.isArray(qqResult.data.data) ? qqResult.data.data : [qqResult.data.data])
+          .map(song => ({
+            ...song,
+            platform: 'qq',
+            name: song.song,
+            singer: song.singer
+          }));
         combinedSongs.push(...qqSongs);
       }
 
@@ -98,28 +95,42 @@ export default function MusicPlayer() {
     }
   };
 
-  const playSong = async (song, index, quality = 5) => {
+  const playSong = async (song, index, quality) => {
     try {
-      let apiUrl;
-      if (song.platform === 'qq') {
-        apiUrl = `${API_BASE_URL}/qqdg/?word=${searchTerm}&n=${index + 1}&q=${quality}`;
-      } else {
-        apiUrl = `${API_BASE_URL}/wydg/?msg=${searchTerm}&n=${index + 1}`;
-      }
+      const endpoint = song.platform === 'qq' 
+        ? musicApi.getSongDetail.qq(searchTerm, index, quality)
+        : musicApi.getSongDetail.wy(searchTerm, index);
 
-      const response = await fetch(apiUrl);
-      const data = await response.json();
+      const { success, data } = await fetchApi(endpoint);
 
-      setRawResponseData(data);
+      if (success && data.code === 200) {
+        if (song.platform === 'qq') {
+          setSongs(prevSongs => prevSongs.map(s => {
+            if (s === song) {
+              return {
+                ...s,
+                details: {
+                  pay: data.data.pay,
+                  time: data.data.time,
+                  bpm: data.data.bpm,
+                  quality: data.data.quality,
+                  interval: data.data.interval,
+                  size: data.data.size,
+                  kbps: data.data.kbps
+                }
+              };
+            }
+            return s;
+          }));
+        }
 
-      if (data.code === 200) {
         const processedSong = song.platform === 'qq' 
           ? {
               name: data.data.song,
               singer: data.data.singer,
               url: data.data.url,
               cover: data.data.cover,
-              lyrics: [] // QQ音乐API似乎不返回歌词
+              lyrics: []
             }
           : {
               name: data.name,
@@ -145,9 +156,9 @@ export default function MusicPlayer() {
   };
 
   const handlePlaySong = async (song, index, quality) => {
-    setIsPlaying(false); // 先暂停当前播放
+    setIsPlaying(false);
     await playSong(song, index, quality);
-    setIsPlaying(true);  // 新歌曲加载后自动播放
+    setIsPlaying(true);
   };
 
   return (
@@ -170,13 +181,11 @@ export default function MusicPlayer() {
         />
       </Card>
       
-      {currentSong && (
-        <GlobalAudioPlayer 
-          song={currentSong}
-          isPlaying={isPlaying}
-          onPlayPause={handlePlayPause}
-        />
-      )}
+      <GlobalAudioPlayer 
+        song={currentSong}
+        isPlaying={isPlaying}
+        onPlayPause={handlePlayPause}
+      />
     </>
   );
 } 

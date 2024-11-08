@@ -1,14 +1,15 @@
 'use client';
 
 import { Input, Button, List, Select, Tag } from 'antd';
-import { SearchOutlined, PlayCircleOutlined } from '@ant-design/icons';
+import { SearchOutlined, PlayCircleOutlined, CustomerServiceOutlined, FieldTimeOutlined, FileOutlined, DashboardOutlined } from '@ant-design/icons';
 import { useState } from 'react';
 
 const QUALITY_OPTIONS = [
-  { value: 9, label: '杜比全景声' },
-  { value: 12, label: '臻品2.0' },
+  { value: 5, label: '标准音质' },
+  { value: 9, label: 'HQ高音质' },
+  { value: 11, label: 'SQ无损音质' },
   { value: 13, label: '臻品全景声' },
-  { value: 14, label: 'SQ无损音质' }
+  { value: 14, label: '臻品母带2.0' }
 ];
 
 // 添加平台特性标签
@@ -27,6 +28,30 @@ const PlatformFeatureTag = ({ platform }) => {
   );
 };
 
+// 付费标签组件
+const PaymentTag = ({ payType }) => {
+  const getPaymentStyle = (type) => {
+    switch (type) {
+      case '付费':
+        return { color: '#ff4d4f', borderColor: '#ff4d4f' };
+      case '免费':
+        return { color: '#52c41a', borderColor: '#52c41a' };
+      default:
+        return { color: '#faad14', borderColor: '#faad14' };
+    }
+  };
+
+  return (
+    <Tag 
+      className="rounded-full text-xs border px-2 py-0.5"
+      style={getPaymentStyle(payType)}
+      bordered
+    >
+      {payType}
+    </Tag>
+  );
+};
+
 export default function SearchPanel({ 
   searchTerm,
   setSearchTerm,
@@ -34,7 +59,7 @@ export default function SearchPanel({
   onSearch,
   onPlaySong
 }) {
-  const [selectedQuality, setSelectedQuality] = useState(9);
+  const [selectedQuality, setSelectedQuality] = useState(5);
 
   // 计算每个歌曲在其平台中的序号
   const getPlatformIndex = (song, index) => {
@@ -79,6 +104,44 @@ export default function SearchPanel({
                 <div className="text-sm text-gray-500">
                   {song.singer}
                 </div>
+                {/* 显示 QQ 音乐的详细信息 */}
+                {song.platform === 'qq' && song.details && (
+                  <div className="mt-2 text-xs space-y-2">
+                    {/* 付费标签和发行信息 - 强制在一行显示 */}
+                    <div className="flex items-center gap-2 whitespace-nowrap">
+                      <PaymentTag payType={song.details.pay} />
+                      <span className="text-gray-400">
+                       发行时间：{song.details.time}
+                      </span>
+                    </div>
+
+                    {/* 音质和大小信息 */}
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-gray-500">
+                      <div className="flex items-center gap-1 whitespace-nowrap">
+                        <CustomerServiceOutlined />
+                        <span>{song.details.quality}</span>
+                      </div>
+                      <div className="flex items-center gap-1 whitespace-nowrap">
+                        <DashboardOutlined />
+                        <span>{song.details.kbps}</span>
+                      </div>
+                      <div className="flex items-center gap-1 whitespace-nowrap">
+                        <FileOutlined />
+                        <span>{song.details.size}</span>
+                      </div>
+                      <div className="flex items-center gap-1 whitespace-nowrap">
+                        <FieldTimeOutlined />
+                        <span>{song.details.interval}</span>
+                      </div>
+                      {song.details.bpm && (
+                        <div className="flex items-center gap-1 whitespace-nowrap">
+                          <DashboardOutlined rotate={90} />
+                          <span>BPM: {song.details.bpm}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               
               {/* 使用新的平台特性标签组件 */}
