@@ -105,7 +105,8 @@ export default function GlobalAudioPlayer() {
     isPlaying, 
     setIsPlaying, 
     toggleFavorite, 
-    isFavorite 
+    isFavorite, 
+    isLoading 
   } = useMusic();
 
   const [expanded, setExpanded] = useState(false);
@@ -330,11 +331,12 @@ export default function GlobalAudioPlayer() {
                 type="primary" 
                 shape="circle"
                 size="middle"
-                icon={isPlaying ? (
+                loading={isLoading}
+                icon={!isLoading && (isPlaying ? (
                   <PauseCircleOutlined style={{ fontSize: '20px' }} />
                 ) : (
                   <PlayCircleOutlined style={{ fontSize: '20px' }} />
-                )}
+                ))}
                 onClick={() => setIsPlaying(!isPlaying)}
                 disabled={!currentSong}
                 className="hover:scale-105 transition-transform duration-200 disabled:opacity-50"
@@ -405,11 +407,12 @@ export default function GlobalAudioPlayer() {
             type="primary" 
             shape="circle"
             size="middle"
-            icon={isPlaying ? (
+            loading={isLoading}
+            icon={!isLoading && (isPlaying ? (
               <PauseCircleOutlined style={{ fontSize: '20px' }} />
             ) : (
               <PlayCircleOutlined style={{ fontSize: '20px' }} />
-            )}
+            ))}
             onClick={() => setIsPlaying(!isPlaying)}
             disabled={!currentSong}
             className="hover:scale-105 transition-transform duration-200 disabled:opacity-50"

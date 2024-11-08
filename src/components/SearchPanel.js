@@ -63,7 +63,9 @@ export default function SearchPanel({ showSearchInput = true }) {
     selectedQuality,
     setSelectedQuality,
     onSearch,
-    onPlaySong
+    onPlaySong,
+    isSearching,
+    isLoading,
   } = useMusic();
 
   return (
@@ -76,12 +78,14 @@ export default function SearchPanel({ showSearchInput = true }) {
             onChange={(e) => setSearchTerm(e.target.value)}
             onSearch={onSearch}
             enterButton
+            loading={isSearching}
             className="flex-grow"
           />
         </div>
       )}
 
       <List
+        loading={isSearching}
         className="flex-1 overflow-y-auto custom-scrollbar"
         itemLayout="horizontal"
         dataSource={songs}
@@ -166,6 +170,7 @@ export default function SearchPanel({ showSearchInput = true }) {
                       </div>
                     </div>
                   )}
+                  disabled={isLoading}
                 />
               )}
 
@@ -174,6 +179,7 @@ export default function SearchPanel({ showSearchInput = true }) {
                 type="text" 
                 icon={<PlayCircleOutlined />} 
                 onClick={() => onPlaySong(song, song.searchIndex, selectedQuality)}
+                loading={isLoading && currentSong?.name === song.name}
               >
                 播放
               </Button>

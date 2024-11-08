@@ -17,6 +17,8 @@ export function MusicProvider({ children }) {
   const [selectedQuality, setSelectedQuality] = useState(5); // 默认标准音质
   const [playHistory, setPlayHistory] = useLocalStorage('playHistory', []);
   const { favorites, isFavorite, toggleFavorite } = useFavoriteSync();
+  const [isSearching, setIsSearching] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // 添加到播放历史
   const addToHistory = (song) => {
@@ -43,6 +45,8 @@ export function MusicProvider({ children }) {
 
   // 搜索功能
   const onSearch = async () => {
+    if (!searchTerm.trim()) return;
+    setIsSearching(true);
     try {
       const [wyResult, qqResult] = await Promise.all([
         fetchApi(musicApi.search.wy(searchTerm)),
@@ -76,11 +80,14 @@ export function MusicProvider({ children }) {
     } catch (error) {
       message.error('搜索失败');
       console.error(error);
+    } finally {
+      setIsSearching(false);
     }
   };
 
   // 播放歌曲
   const onPlaySong = async (song, index, quality) => {
+    setIsLoading(true);
     try {
       // 如果已有 endpoint，直接使用其参数构建请求
       let endpoint;
@@ -124,6 +131,8 @@ export function MusicProvider({ children }) {
     } catch (error) {
       message.error('播放失败');
       console.error(error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -146,7 +155,9 @@ export function MusicProvider({ children }) {
     favorites,
     isFavorite,
     removeFromHistory,
-    toggleFavorite
+    toggleFavorite,
+    isSearching,
+    isLoading,
   };
 
   return (
