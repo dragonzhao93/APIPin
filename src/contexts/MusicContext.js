@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { message } from 'antd';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useFavoriteSync } from '@/hooks/useFavoriteSync';
@@ -20,6 +20,7 @@ export function MusicProvider({ children }) {
   const [isSearching, setIsSearching] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { queue: playQueue, isInQueue, toggleQueue, clearQueue, getNextSong, getPreviousSong } = usePlayQueue();
+  const audioRef = useRef(null);
 
   // 添加到播放历史
   const addToHistory = (song) => {
@@ -195,7 +196,7 @@ export function MusicProvider({ children }) {
 
   // 监听歌曲播放结束,自动播放下一首
   useEffect(() => {
-    if (!isPlaying && currentSong && !isLoading) {
+    if (!isPlaying && currentSong && !isLoading && audioRef.current?.ended) {
       const nextSong = getNextSong(currentSong);
       if (nextSong) {
         if (nextSong.url) {
@@ -262,6 +263,7 @@ export function MusicProvider({ children }) {
     clearQueue,
     playPreviousSong,
     playNextSong,
+    audioRef,
   };
 
   return (

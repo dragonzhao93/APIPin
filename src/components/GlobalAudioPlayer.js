@@ -129,13 +129,13 @@ export default function GlobalAudioPlayer() {
     onPlaySong,
     playPreviousSong,
     playNextSong,
+    audioRef,
   } = useMusic();
 
   const [expanded, setExpanded] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentLyricIndex, setCurrentLyricIndex] = useState(-1);
-  const audioRef = useRef(null);
 
   useEffect(() => {
     const audioElement = audioRef.current;
@@ -426,15 +426,15 @@ export default function GlobalAudioPlayer() {
             </div>
 
             <div className="h-[120px] flex flex-col justify-end py-4">
-              <div className="flex items-center gap-4">
-                <Text className="w-12 text-right">{formatTime(currentTime)}</Text>
+              <div className="flex items-center gap-2 px-2">
+                <Text className="w-[45px] text-right text-xs flex-shrink-0">{formatTime(currentTime)}</Text>
                 <ProgressSlider 
                   value={currentTime}
                   max={duration || 100}
                   onChange={handleSliderChange}
                   disabled={!currentSong}
                 />
-                <Text className="w-12">{formatTime(duration)}</Text>
+                <Text className="w-[45px] text-xs flex-shrink-0">{formatTime(duration)}</Text>
               </div>
               
               {renderPlayControls()}
