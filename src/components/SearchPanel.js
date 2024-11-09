@@ -58,6 +58,7 @@ export default function SearchPanel({ showSearchInput = true }) {
     setSearchTerm,
     songs,
     setSongs,
+    currentSong,
     setCurrentSong,
     setIsPlaying,
     selectedQuality,
