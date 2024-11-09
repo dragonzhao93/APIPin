@@ -1,9 +1,10 @@
 'use client';
 
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { message } from 'antd';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useFavoriteSync } from '@/hooks/useFavoriteSync';
+import { usePlayQueue } from '@/hooks/usePlayQueue';
 
 const MusicContext = createContext(null);
 
@@ -18,6 +19,7 @@ export function MusicProvider({ children }) {
   const { favorites, isFavorite, toggleFavorite } = useFavoriteSync();
   const [isSearching, setIsSearching] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const { queue: playQueue, isInQueue, toggleQueue, clearQueue, getNextSong, getPreviousSong } = usePlayQueue();
 
   // 添加到播放历史
   const addToHistory = (song) => {
@@ -96,42 +98,62 @@ export function MusicProvider({ children }) {
   };
 
   // 播放歌曲
-  const onPlaySong = async (song, index, quality) => {
-    if (song.url && song.platform !== 'qq') {
-      setCurrentSong(song);
-      setIsPlaying(true);
-      return;
-    }
+  const onPlaySong = async (song, index, quality, isRetry = false) => {
+    // 如果正在加载中且不是重试，则跳过
+    if (isLoading && !isRetry) return;
+    
+    const maxRetries = 3;
+    let retryCount = 0;
+    let lastError = null;
+
+    const tryPlay = async () => {
+      try {
+        const requestUrl = song.requestUrl || `/api/sby?platform=${song.platform}&term=${encodeURIComponent(song.searchTerm || searchTerm)}&index=${song.searchIndex || index}${quality ? `&quality=${quality}` : ''}`;
+        
+        const { success, data } = await fetch(requestUrl).then(r => r.json());
+
+        if (success && data.code === 200) {
+          const updatedSong = {
+            ...song,
+            id: data.data?.id || song.id,
+            url: song.platform === 'qq' ? data.data.url : data.mp3,
+            cover: song.platform === 'qq' ? data.data.cover : data.img,
+            lyrics: song.platform === 'qq' ? [] : (data.lyric || []),
+            searchTerm: song.searchTerm || searchTerm,
+            searchIndex: song.searchIndex || index,
+            details: song.platform === 'qq' ? data.data : null,
+            requestUrl: requestUrl
+          };
+
+          if (!updatedSong.url) {
+            throw new Error('Invalid audio URL');
+          }
+
+          // 更新历史记录和播放列表中的数据
+          updateSongData(updatedSong);
+          
+          setCurrentSong(updatedSong);
+          setIsPlaying(true);
+          addToHistory(updatedSong);
+          return true;
+        } else {
+          throw new Error(data.msg || '获取歌曲详情失败');
+        }
+      } catch (error) {
+        lastError = error;
+        return false;
+      }
+    };
 
     setIsLoading(true);
     try {
-      const requestUrl = song.requestUrl || `/api/sby?platform=${song.platform}&term=${encodeURIComponent(song.searchTerm || searchTerm)}&index=${song.searchIndex || index}${quality ? `&quality=${quality}` : ''}`;
-      
-      const { success, data } = await fetch(requestUrl).then(r => r.json());
-
-      if (success && data.code === 200) {
-        const updatedSong = {
-          ...song,
-          id: data.data?.id || song.id,
-          url: song.platform === 'qq' ? data.data.url : data.mp3,
-          cover: song.platform === 'qq' ? data.data.cover : data.img,
-          lyrics: song.platform === 'qq' ? [] : (data.lyric || []),
-          searchTerm: song.searchTerm || searchTerm,
-          searchIndex: song.searchIndex || index,
-          details: song.platform === 'qq' ? data.data : null,
-          requestUrl: requestUrl // 保存完整的请求URL
-        };
-
-        if (!updatedSong.url) {
-          throw new Error('Invalid audio URL');
-        }
-
-        setCurrentSong(updatedSong);
-        setIsPlaying(true);
-        addToHistory(updatedSong);
-      } else {
-        throw new Error(data.msg || '获取歌曲详情失败');
+      while (retryCount < maxRetries) {
+        const success = await tryPlay();
+        if (success) return;
+        retryCount++;
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
+      throw lastError || new Error('播放失败');
     } catch (error) {
       console.error('播放失败:', error);
       message.error(error.message || '播放失败');
@@ -140,9 +162,76 @@ export function MusicProvider({ children }) {
     }
   };
 
+  // 更新所有相关列表中的歌曲数据
+  const updateSongData = (updatedSong) => {
+    // 更新播放历史
+    setPlayHistory(prev => prev.map(song => 
+      isSameSong(song, updatedSong) ? { ...updatedSong } : song
+    ));
+
+    // 更新播放队列
+    if (playQueue.some(song => isSameSong(song, updatedSong))) {
+      toggleQueue(updatedSong);
+      toggleQueue(updatedSong);
+    }
+
+    // 更新搜索结果
+    setSongs(prev => prev.map(song => 
+      isSameSong(song, updatedSong) ? { ...updatedSong } : song
+    ));
+  };
+
+  // 判断是否为同一首歌
+  const isSameSong = (song1, song2) => {
+    return song1.name === song2.name && 
+           song1.singer === song2.singer && 
+           song1.platform === song2.platform;
+  };
+
   // 修改音质选择处理函数
   const handleQualityChange = (quality) => {
     setSelectedQuality(quality);
+  };
+
+  // 监听歌曲播放结束,自动播放下一首
+  useEffect(() => {
+    if (!isPlaying && currentSong && !isLoading) {
+      const nextSong = getNextSong(currentSong);
+      if (nextSong) {
+        if (nextSong.url) {
+          setCurrentSong(nextSong);
+          setIsPlaying(true);
+        } else {
+          onPlaySong(nextSong, nextSong.searchIndex, selectedQuality);
+        }
+      }
+    }
+  }, [isPlaying, currentSong, isLoading]);
+
+  const playPreviousSong = () => {
+    if (!currentSong) return;
+    const previousSong = getPreviousSong(currentSong);
+    if (previousSong) {
+      if (previousSong.url) {
+        setCurrentSong(previousSong);
+        setIsPlaying(true);
+      } else {
+        onPlaySong(previousSong, previousSong.searchIndex, selectedQuality);
+      }
+    }
+  };
+
+  const playNextSong = () => {
+    if (!currentSong) return;
+    const nextSong = getNextSong(currentSong);
+    if (nextSong) {
+      if (nextSong.url) {
+        setCurrentSong(nextSong);
+        setIsPlaying(true);
+      } else {
+        onPlaySong(nextSong, nextSong.searchIndex, selectedQuality);
+      }
+    }
   };
 
   const value = {
@@ -167,6 +256,12 @@ export function MusicProvider({ children }) {
     toggleFavorite,
     isSearching,
     isLoading,
+    playQueue,
+    isInQueue,
+    toggleQueue,
+    clearQueue,
+    playPreviousSong,
+    playNextSong,
   };
 
   return (

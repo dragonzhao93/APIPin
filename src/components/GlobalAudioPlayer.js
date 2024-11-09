@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button, Slider, Typography, Drawer } from 'antd';
-import { PlayCircleOutlined, PauseCircleOutlined, UpOutlined, DownOutlined, CustomerServiceOutlined, StarOutlined, StarFilled } from '@ant-design/icons';
+import { PlayCircleOutlined, PauseCircleOutlined, UpOutlined, DownOutlined, CustomerServiceOutlined, StarOutlined, StarFilled, StepBackwardOutlined, StepForwardOutlined } from '@ant-design/icons';
 import LyricDisplay from './LyricDisplay';
 import { useMusic } from '@/contexts/MusicContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -36,53 +36,35 @@ const sliderStyles = {
     width: '12px',
     height: '12px',
     marginTop: '-6px',
-    transform: 'translateY(50%)', // 关键是这行，确保滑块垂直居中
+    transform: 'translateY(50%)', // 关键是这，确保滑块垂直居中
     boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
   }
 };
 
 // 自定义进度条组件
 const ProgressSlider = ({ value, max, onChange, disabled }) => {
-  const sliderWidth = 100; // 进度条宽度百分比
+  const sliderWidth = 100;
   const progress = (value / max) * sliderWidth;
 
   return (
-    <div className="relative flex-1 group">
+    <div className="relative w-full group h-1">
       {/* 进度条背景 */}
-      <div className="absolute w-full h-1 bg-gray-200 rounded-full top-1/2 -translate-y-1/2" />
+      <div className="absolute w-full h-1 bg-gray-200/50 rounded-full" />
       
       {/* 进度条 */}
       <div 
-        className="absolute h-1 bg-blue-500 rounded-full top-1/2 -translate-y-1/2 transition-all"
+        className="absolute h-1 bg-blue-500 rounded-full transition-all"
         style={{ width: `${progress}%` }}
       />
 
-      {/* 滑块 SVG */}
+      {/* 滑块 */}
       <div 
-        className="absolute top-1/2 -translate-y-1/2 -ml-2"
+        className="absolute top-1/2 -translate-y-1/2 -ml-1.5"
         style={{ left: `${progress}%` }}
       >
-        <svg 
-          width="16" 
-          height="16" 
-          viewBox="0 0 16 16"
-          className="group-hover:scale-110 transition-transform duration-200"
-        >
-          {/* 外圈光晕 */}
-          <circle
-            cx="8"
-            cy="8"
-            r="7"
-            className="fill-blue-100 opacity-0 group-hover:opacity-100 transition-opacity"
-          />
-          {/* 主圆点 */}
-          <circle
-            cx="8"
-            cy="8"
-            r="4"
-            className="fill-blue-500"
-          />
-        </svg>
+        <div className="w-3 h-3 bg-blue-500 rounded-full shadow-sm 
+                      transform transition-transform duration-200
+                      group-hover:scale-125 group-hover:shadow-md" />
       </div>
 
       {/* 隐藏的滑块输入 */}
@@ -94,7 +76,7 @@ const ProgressSlider = ({ value, max, onChange, disabled }) => {
         onChange={e => onChange(parseFloat(e.target.value))}
         disabled={disabled}
         className="absolute w-full opacity-0 cursor-pointer"
-        style={{ height: '20px', top: '50%', transform: 'translateY(-50%)' }}
+        style={{ height: '20px', top: '-10px' }}
       />
     </div>
   );
@@ -110,8 +92,8 @@ const containerVariants = {
     bottom: 'auto'
   },
   collapsed: {
-    height: '72px',
-    margin: '0 16px 16px 16px',
+    height: '80px',
+    margin: '0 8px 8px 8px',
     borderRadius: '12px',
     bottom: 0,
     top: 'auto'
@@ -143,7 +125,10 @@ export default function GlobalAudioPlayer() {
     setIsPlaying, 
     toggleFavorite, 
     isFavorite, 
-    isLoading 
+    isLoading,
+    onPlaySong,
+    playPreviousSong,
+    playNextSong,
   } = useMusic();
 
   const [expanded, setExpanded] = useState(false);
@@ -202,15 +187,58 @@ export default function GlobalAudioPlayer() {
     const audioElement = audioRef.current;
     if (!audioElement) return;
 
+    const playWithRetry = async () => {
+      try {
+        await audioElement.play();
+      } catch (error) {
+        console.error('Playback error:', error);
+        // 检查是否为 CORS 错误
+        if (error.name === 'NotAllowedError' || error.name === 'NotSupportedError' || 
+            error.message.includes('CORS') || error.message.includes('cross-origin')) {
+          // CORS 错误，直接重新获取
+          if (currentSong?.requestUrl) {
+            onPlaySong(currentSong, currentSong.searchIndex, currentSong.quality, true);
+          }
+        } else {
+          setIsPlaying(false);
+        }
+      }
+    };
+
+    let playTimeout;
     if (isPlaying) {
-      audioElement.play().catch(error => {
-        console.error('Playback failed:', error);
-        setIsPlaying(false);
-      });
+      // 添加错误事件监听
+      const handleError = (error) => {
+        console.error('Audio error:', error);
+        if (currentSong?.requestUrl) {
+          onPlaySong(currentSong, currentSong.searchIndex, currentSong.quality, true);
+        } else {
+          setIsPlaying(false);
+        }
+      };
+
+      audioElement.addEventListener('error', handleError);
+      
+      playTimeout = setTimeout(() => {
+        if (audioElement.readyState === 0) {
+          if (currentSong?.requestUrl) {
+            onPlaySong(currentSong, currentSong.searchIndex, currentSong.quality, true);
+          } else {
+            setIsPlaying(false);
+          }
+        }
+      }, 5000);
+
+      playWithRetry();
+
+      return () => {
+        clearTimeout(playTimeout);
+        audioElement.removeEventListener('error', handleError);
+      };
     } else {
       audioElement.pause();
     }
-  }, [isPlaying, setIsPlaying]);
+  }, [isPlaying, currentSong, onPlaySong, setIsPlaying]);
 
   const handleSliderChange = (value) => {
     audioRef.current.currentTime = value;
@@ -270,6 +298,50 @@ export default function GlobalAudioPlayer() {
       }
     };
   }, [setIsPlaying]);
+
+  const renderPlayControls = () => (
+    <div className="flex items-center justify-center gap-4">
+      <Button 
+        type="text"
+        icon={<StepBackwardOutlined />}
+        onClick={playPreviousSong}
+        disabled={!currentSong}
+        className="hover:scale-105 transition-transform"
+      />
+      
+      <Button 
+        type="primary" 
+        shape="circle"
+        size="middle"
+        loading={isLoading}
+        icon={!isLoading && (isPlaying ? (
+          <PauseCircleOutlined style={{ fontSize: '20px' }} />
+        ) : (
+          <PlayCircleOutlined style={{ fontSize: '20px' }} />
+        ))}
+        onClick={() => setIsPlaying(!isPlaying)}
+        disabled={!currentSong}
+        className="hover:scale-105 transition-transform duration-200 disabled:opacity-50"
+        style={{
+          width: '40px',
+          height: '40px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 2px 8px rgba(22, 119, 255, 0.15)',
+          background: '#1677ff'
+        }}
+      />
+      
+      <Button 
+        type="text"
+        icon={<StepForwardOutlined />}
+        onClick={playNextSong}
+        disabled={!currentSong}
+        className="hover:scale-105 transition-transform"
+      />
+    </div>
+  );
 
   return (
     <motion.div 
@@ -365,83 +437,75 @@ export default function GlobalAudioPlayer() {
                 <Text className="w-12">{formatTime(duration)}</Text>
               </div>
               
-              <div className="flex justify-center mt-4">
-                <Button 
-                  type="primary" 
-                  shape="circle"
-                  size="middle"
-                  loading={isLoading}
-                  icon={!isLoading && (isPlaying ? (
-                    <PauseCircleOutlined style={{ fontSize: '20px' }} />
-                  ) : (
-                    <PlayCircleOutlined style={{ fontSize: '20px' }} />
-                  ))}
-                  onClick={() => setIsPlaying(!isPlaying)}
-                  disabled={!currentSong}
-                  className="hover:scale-105 transition-transform duration-200 disabled:opacity-50"
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 2px 8px rgba(22, 119, 255, 0.15)',
-                    background: '#1677ff'
-                  }}
-                />
-              </div>
+              {renderPlayControls()}
             </div>
           </motion.div>
         ) : (
           <motion.div 
             key="collapsed"
-            className="h-full flex items-center px-6 gap-4"
+            className="h-full flex flex-col"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <Button 
-              type="text"
-              icon={<UpOutlined />}
-              onClick={() => setExpanded(true)}
-              className="hover:scale-105 transition-transform"
-            />
-            
-            <div className="relative w-10 h-10 rounded-full overflow-hidden shadow-sm">
-              {currentSong ? (
-                <motion.img 
-                  src={currentSong.cover || '/default-cover.jpg'} 
-                  alt={currentSong.name}
-                  className="w-full h-full object-cover"
-                  variants={coverVariants}
-                  animate={isPlaying ? "playing" : "paused"}
-                />
-              ) : (
-                <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                  <CustomerServiceOutlined className="text-gray-400" />
-                </div>
-              )}
-            </div>
-            
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-1.5">
-                <Text className="text-sm truncate flex-1 text-gray-800">
-                  {currentSong ? `${currentSong.name} - ${currentSong.singer}` : '未播放任何歌曲'}
-                </Text>
-                {currentSong && (
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={isFavorite(currentSong) ? <StarFilled /> : <StarOutlined />}
-                    onClick={() => toggleFavorite(currentSong)}
-                    className="ml-2 hover:scale-105 transition-transform"
+            {/* 主要内容区域 */}
+            <div className="flex items-center px-3 md:px-6 gap-2 md:gap-4 h-[60px]">
+              <Button 
+                type="text"
+                icon={<UpOutlined />}
+                onClick={() => setExpanded(true)}
+                className="hover:scale-105 transition-transform flex-shrink-0"
+              />
+              
+              <div className="relative w-10 h-10 rounded-full overflow-hidden shadow-sm flex-shrink-0">
+                {currentSong ? (
+                  <motion.img 
+                    src={currentSong.cover || '/default-cover.jpg'} 
+                    alt={currentSong.name}
+                    className="w-full h-full object-cover"
+                    variants={coverVariants}
+                    animate={isPlaying ? "playing" : "paused"}
                   />
+                ) : (
+                  <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                    <CustomerServiceOutlined className="text-gray-400" />
+                  </div>
                 )}
-                <Text className="text-xs ml-2 whitespace-nowrap text-gray-500">
-                  {formatTime(currentTime)} / {formatTime(duration)}
-                </Text>
               </div>
+              
+              <div className="flex-1 min-w-0 flex flex-col justify-center">
+                <div className="flex items-center gap-2">
+                  <Text className="text-sm font-medium truncate">
+                    {currentSong?.name || '未播放任何歌曲'}
+                  </Text>
+                  {currentSong && (
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={isFavorite(currentSong) ? <StarFilled /> : <StarOutlined />}
+                      onClick={() => toggleFavorite(currentSong)}
+                      className="flex-shrink-0 hover:scale-105 transition-transform -ml-1"
+                    />
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Text className="text-xs text-gray-500 truncate">
+                    {currentSong?.singer || '点击播放按钮开始'}
+                  </Text>
+                  <Text className="text-xs text-gray-400 flex-shrink-0">
+                    {formatTime(currentTime)} / {formatTime(duration)}
+                  </Text>
+                </div>
+              </div>
+
+              <div className="flex-shrink-0 flex items-center">
+                {renderPlayControls()}
+              </div>
+            </div>
+
+            {/* 进度条区域 */}
+            <div className="px-3 md:px-6 h-[20px] flex items-center">
               <ProgressSlider 
                 value={currentTime}
                 max={duration || 100}
@@ -449,30 +513,6 @@ export default function GlobalAudioPlayer() {
                 disabled={!currentSong}
               />
             </div>
-
-            <Button 
-              type="primary" 
-              shape="circle"
-              size="middle"
-              loading={isLoading}
-              icon={!isLoading && (isPlaying ? (
-                <PauseCircleOutlined style={{ fontSize: '20px' }} />
-              ) : (
-                <PlayCircleOutlined style={{ fontSize: '20px' }} />
-              ))}
-              onClick={() => setIsPlaying(!isPlaying)}
-              disabled={!currentSong}
-              className="hover:scale-105 transition-transform duration-200 disabled:opacity-50"
-              style={{
-                width: '40px',
-                height: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 2px 8px rgba(22, 119, 255, 0.15)',
-                background: '#1677ff'
-              }}
-            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -481,7 +521,7 @@ export default function GlobalAudioPlayer() {
         ref={audioRef}
         src={currentSong?.url}
         crossOrigin="anonymous"
-        preload="auto" // 改为 auto 以预加载音频
+        preload="auto"
         className="hidden"
       />
     </motion.div>
