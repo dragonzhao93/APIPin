@@ -24,27 +24,20 @@ export function useFavoriteSync() {
     return favoriteMap.has(key);
   };
 
-  // 收藏/取消收藏
+  // 收藏/取消收藏 - 完全复制或删除
   const toggleFavorite = (song) => {
     if (!song) return;
     const key = `${song.name}-${song.singer}-${song.platform}`;
     
     setFavorites(prev => {
       if (favoriteMap.has(key)) {
+        // 直接删除匹配的条目
         return prev.filter(s => 
           !(s.name === song.name && s.singer === song.singer && s.platform === song.platform)
         );
       } else {
-        // 保存完整的歌曲信息
-        const songToSave = {
-          ...song,
-          name: song.name,
-          singer: song.singer,
-          platform: song.platform,
-          details: song.details || null,
-          endpoint: song.endpoint || null
-        };
-        return [...prev, songToSave];
+        // 完整复制歌曲数据
+        return [...prev, { ...song }];
       }
     });
   };

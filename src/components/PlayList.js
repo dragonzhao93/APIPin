@@ -55,8 +55,20 @@ export default function PlayList() {
     toggleFavorite,
     isFavorite,
     onPlaySong,
-    selectedQuality 
+    setCurrentSong,
+    setIsPlaying
   } = useMusic();
+
+  // 直接播放已有URL的歌曲
+  const handlePlay = (song) => {
+    if (song.url && song.platform !== 'qq') {
+      setCurrentSong(song);
+      setIsPlaying(true);
+    } else {
+      // 如果有requestUrl就直接使用，否则通过searchIndex获取
+      onPlaySong(song, song.searchIndex, song.quality);
+    }
+  };
 
   const renderSongList = (songs, isHistory = false) => {
     if (!songs.length) {
@@ -83,7 +95,7 @@ export default function PlayList() {
                 type="text"
                 size="small"
                 icon={<PlayCircleOutlined />}
-                onClick={() => onPlaySong(song, index, selectedQuality)}
+                onClick={() => handlePlay(song)}
                 className="flex items-center !px-2"
               />,
               isHistory ? (

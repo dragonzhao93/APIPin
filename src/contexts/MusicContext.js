@@ -1,7 +1,6 @@
 'use client';
 
 import { createContext, useContext, useState } from 'react';
-import { musicApi, fetchApi } from '../services/api';
 import { message } from 'antd';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useFavoriteSync } from '@/hooks/useFavoriteSync';
@@ -26,11 +25,22 @@ export function MusicProvider({ children }) {
       const filtered = prev.filter(s => 
         !(s.name === song.name && s.singer === song.singer && s.platform === song.platform)
       );
-      return [{
-        ...song,
-        details: song.details || null,
-        endpoint: song.endpoint || null
-      }, ...filtered].slice(0, 50);
+      
+      // 构建完整的请求URL
+      const requestUrl = `/api/sby?platform=${song.platform}&term=${encodeURIComponent(song.searchTerm || searchTerm)}&index=${song.searchIndex}${selectedQuality ? `&quality=${selectedQuality}` : ''}`;
+      
+      const simplifiedSong = {
+        id: song.id,
+        name: song.name,
+        singer: song.singer,
+        cover: song.cover,
+        url: song.url,
+        lyrics: song.lyrics || [],
+        platform: song.platform,
+        requestUrl // 替换原来的endpoint对象
+      };
+      
+      return [simplifiedSong, ...filtered].slice(0, 50);
     });
   };
 
@@ -49,8 +59,8 @@ export function MusicProvider({ children }) {
     setIsSearching(true);
     try {
       const [wyResult, qqResult] = await Promise.all([
-        fetchApi(musicApi.search.wy(searchTerm)),
-        fetchApi(musicApi.search.qq(searchTerm))
+        fetch(`/api/sby?platform=wy&term=${encodeURIComponent(searchTerm)}`).then(r => r.json()),
+        fetch(`/api/sby?platform=qq&term=${encodeURIComponent(searchTerm)}`).then(r => r.json())
       ]);
 
       const combinedSongs = [];
@@ -87,50 +97,44 @@ export function MusicProvider({ children }) {
 
   // 播放歌曲
   const onPlaySong = async (song, index, quality) => {
+    if (song.url && song.platform !== 'qq') {
+      setCurrentSong(song);
+      setIsPlaying(true);
+      return;
+    }
+
     setIsLoading(true);
     try {
-      let endpoint;
-      const currentQuality = quality || selectedQuality;
+      const requestUrl = song.requestUrl || `/api/sby?platform=${song.platform}&term=${encodeURIComponent(song.searchTerm || searchTerm)}&index=${song.searchIndex || index}${quality ? `&quality=${quality}` : ''}`;
       
-      if (song.endpoint) {
-        const { term, index: songIndex } = song.endpoint;
-        endpoint = song.platform === 'qq' 
-          ? musicApi.getSongDetail.qq(term, songIndex, currentQuality)
-          : musicApi.getSongDetail.wy(term, songIndex);
-      } else {
-        endpoint = song.platform === 'qq' 
-          ? musicApi.getSongDetail.qq(searchTerm, song.searchIndex, currentQuality)
-          : musicApi.getSongDetail.wy(searchTerm, song.searchIndex);
-      }
-
-      const { success, data } = await fetchApi(endpoint);
+      const { success, data } = await fetch(requestUrl).then(r => r.json());
 
       if (success && data.code === 200) {
         const updatedSong = {
           ...song,
-          endpoint: {
-            term: song.endpoint?.term || searchTerm,
-            index: song.endpoint?.index || song.searchIndex,
-            quality: song.endpoint?.quality || quality
-          },
-          details: song.platform === 'qq' ? extractQQDetails(data.data) : null
+          id: data.data?.id || song.id,
+          url: song.platform === 'qq' ? data.data.url : data.mp3,
+          cover: song.platform === 'qq' ? data.data.cover : data.img,
+          lyrics: song.platform === 'qq' ? [] : (data.lyric || []),
+          searchTerm: song.searchTerm || searchTerm,
+          searchIndex: song.searchIndex || index,
+          details: song.platform === 'qq' ? data.data : null,
+          requestUrl: requestUrl // 保存完整的请求URL
         };
 
-        if (song.platform === 'qq') {
-          setSongs(prevSongs => prevSongs.map(s => 
-            s === song ? updatedSong : s
-          ));
+        if (!updatedSong.url) {
+          throw new Error('Invalid audio URL');
         }
 
-        setCurrentSong(formatSongData(data, song.platform, updatedSong));
+        setCurrentSong(updatedSong);
         setIsPlaying(true);
         addToHistory(updatedSong);
       } else {
-        message.error('获取歌曲详情失败');
+        throw new Error(data.msg || '获取歌曲详情失败');
       }
     } catch (error) {
-      message.error('播放失败');
-      console.error(error);
+      console.error('播放失败:', error);
+      message.error(error.message || '播放失败');
     } finally {
       setIsLoading(false);
     }
@@ -218,7 +222,7 @@ function formatSongData(data, platform, originalSong) {
         lyrics: [],
         platform,
         details: originalSong?.details,
-        endpoint: originalSong?.endpoint
+        requestUrl: originalSong?.requestUrl
       }
     : {
         name: data.name,
@@ -228,7 +232,7 @@ function formatSongData(data, platform, originalSong) {
         lyrics: data.lyric || [],
         platform,
         details: originalSong?.details,
-        endpoint: originalSong?.endpoint
+        requestUrl: originalSong?.requestUrl
       };
 }
 
