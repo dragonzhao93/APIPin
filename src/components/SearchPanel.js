@@ -1,6 +1,6 @@
 'use client';
 
-import { Input, Button, List, Select, Tag } from 'antd';
+import { Input, Button, List, Dropdown, Tag } from 'antd';
 import { SearchOutlined, PlayCircleOutlined, CustomerServiceOutlined, FieldTimeOutlined, FileOutlined, DashboardOutlined } from '@ant-design/icons';
 import { useMusic } from '@/contexts/MusicContext';
 
@@ -52,6 +52,16 @@ const PaymentTag = ({ payType }) => {
   );
 };
 
+// 添加音质选择菜单项组件
+const QualityMenuItem = ({ quality, label, selectedQuality, onClick }) => (
+  <div
+    className={`px-4 py-2 cursor-pointer hover:bg-gray-50 ${selectedQuality === quality ? 'text-blue-600' : ''}`}
+    onClick={() => onClick(quality)}
+  >
+    {label}
+  </div>
+);
+
 export default function SearchPanel({ showSearchInput = true }) {
   const { 
     searchTerm, 
@@ -68,6 +78,23 @@ export default function SearchPanel({ showSearchInput = true }) {
     isSearching,
     isLoading,
   } = useMusic();
+
+  // 把 renderQualityMenu 移到组件内部
+  const renderQualityMenu = (song) => ({
+    items: QUALITY_OPTIONS.map(opt => ({
+      key: opt.value,
+      label: (
+        <QualityMenuItem
+          quality={opt.value}
+          label={opt.label}
+          selectedQuality={selectedQuality}
+          onClick={(quality) => {
+            setSelectedQuality(quality);
+          }}
+        />
+      ),
+    })),
+  });
 
   return (
     <div className="h-full flex flex-col">
@@ -88,6 +115,7 @@ export default function SearchPanel({ showSearchInput = true }) {
       <List
         loading={isSearching}
         className="flex-1 overflow-y-auto custom-scrollbar"
+        style={{ maxHeight: 'calc(100vh - 300px)' }}
         itemLayout="horizontal"
         dataSource={songs}
         renderItem={(song, index) => (
@@ -152,27 +180,19 @@ export default function SearchPanel({ showSearchInput = true }) {
             <div className="w-full flex justify-end items-center gap-2 mt-1">
               {/* 音质选择在左 */}
               {song.platform === 'qq' && (
-                <Select 
-                  size="small"
-                  value={selectedQuality}
-                  onChange={(value) => setSelectedQuality(value)}
-                  className="w-28"
-                  bordered={false}
-                  dropdownMatchSelectWidth={false}
-                  options={QUALITY_OPTIONS.map(opt => ({
-                    value: opt.value,
-                    label: opt.label,
-                  }))}
-                  dropdownRender={menu => (
-                    <div>
-                      {menu}
-                      <div className="px-2 py-1 text-xs text-gray-500 border-t">
-                        {QUALITY_OPTIONS.find(opt => opt.value === selectedQuality)?.label}
-                      </div>
-                    </div>
-                  )}
-                  disabled={isLoading}
-                />
+                <Dropdown
+                  menu={renderQualityMenu(song)}
+                  trigger={['click']}
+                  placement="bottomRight"
+                >
+                  <Button 
+                    size="small"
+                    type="text"
+                    className="text-gray-600 hover:text-blue-600"
+                  >
+                    {QUALITY_OPTIONS.find(opt => opt.value === selectedQuality)?.label}
+                  </Button>
+                </Dropdown>
               )}
 
               {/* 播放按钮在右 */}

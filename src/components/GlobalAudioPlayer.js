@@ -5,6 +5,7 @@ import { Button, Slider, Typography, Drawer } from 'antd';
 import { PlayCircleOutlined, PauseCircleOutlined, UpOutlined, DownOutlined, CustomerServiceOutlined, StarOutlined, StarFilled } from '@ant-design/icons';
 import LyricDisplay from './LyricDisplay';
 import { useMusic } from '@/contexts/MusicContext';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const { Text } = Typography;
 
@@ -97,6 +98,42 @@ const ProgressSlider = ({ value, max, onChange, disabled }) => {
       />
     </div>
   );
+};
+
+// 添加动画变体配置
+const containerVariants = {
+  expanded: {
+    height: '100vh',
+    margin: 0,
+    borderRadius: 0,
+    top: 0,
+    bottom: 'auto'
+  },
+  collapsed: {
+    height: '72px',
+    margin: '0 16px 16px 16px',
+    borderRadius: '12px',
+    bottom: 0,
+    top: 'auto'
+  }
+};
+
+const coverVariants = {
+  playing: {
+    rotate: 360,
+    transition: {
+      duration: 20,
+      ease: "linear",
+      repeat: Infinity
+    }
+  },
+  paused: {
+    rotate: 0,
+    transition: {
+      duration: 0.5,
+      ease: "easeOut"
+    }
+  }
 };
 
 export default function GlobalAudioPlayer() {
@@ -234,200 +271,211 @@ export default function GlobalAudioPlayer() {
     };
   }, [setIsPlaying]);
 
-  // 更新封面图片样式
-  const coverStyles = {
-    animation: isPlaying ? 'spin 20s linear infinite' : 'none',
-    transform: 'rotate(0deg)',
-    transition: 'all 0.5s ease-out' // 添加过渡效果，使停止更平滑
-  };
-
   return (
-    <div 
-      className={`fixed left-0 right-0 bg-white/80 backdrop-blur-sm transition-all duration-300 ease-out
-        ${expanded ? 'top-0 h-screen m-0 rounded-none' : 'bottom-0 h-[72px] mx-4 mb-4 rounded-xl'}
-      `}
+    <motion.div 
+      className="fixed left-0 right-0 bg-white/80 backdrop-blur-sm"
+      variants={containerVariants}
+      initial="collapsed"
+      animate={expanded ? "expanded" : "collapsed"}
+      transition={{ type: "spring", bounce: 0.1, duration: 0.6 }}
       style={{
         zIndex: 1000,
         boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-        willChange: 'height, margin, border-radius',
-        transform: 'translateZ(0)', // 启用硬件加速
       }}
     >
-      {expanded ? (
-        <div className="h-full flex flex-col p-4 animate-fadeIn">
-          <Button 
-            type="text"
-            icon={<DownOutlined />}
-            onClick={() => setExpanded(false)}
-            className="self-start mb-2"
-          />
-          
-          <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden items-center justify-center" 
-               style={{ maxHeight: 'calc(100vh - 180px)' }}>
-            {currentSong ? (
-              <>
-                <div className="flex-1 flex flex-col items-center justify-center min-h-[300px]">
-                  <div 
-                    className="relative w-48 h-48 md:w-64 md:h-64 rounded-full overflow-hidden"
-                    style={{
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.12)'
-                    }}
-                  >
-                    <img 
-                      src={currentSong?.cover || '/default-cover.jpg'}
-                      alt={currentSong?.name}
-                      className="w-full h-full object-cover"
-                      style={coverStyles}
+      <AnimatePresence mode="wait">
+        {expanded ? (
+          <motion.div 
+            key="expanded"
+            className="h-full flex flex-col p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <Button 
+              type="text"
+              icon={<DownOutlined />}
+              onClick={() => setExpanded(false)}
+              className="self-start mb-2"
+            />
+            
+            <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden items-center justify-center" 
+                 style={{ maxHeight: 'calc(100vh - 180px)' }}>
+              {currentSong ? (
+                <>
+                  <div className="flex-1 flex flex-col items-center justify-center min-h-[300px]">
+                    <div 
+                      className="relative w-48 h-48 md:w-64 md:h-64 rounded-full overflow-hidden"
+                      style={{
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.12)'
+                      }}
+                    >
+                      <motion.img 
+                        src={currentSong?.cover || '/default-cover.jpg'}
+                        alt={currentSong?.name}
+                        className="w-full h-full object-cover"
+                        variants={coverVariants}
+                        animate={isPlaying ? "playing" : "paused"}
+                      />
+                    </div>
+                    
+                    <div className="mt-6 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <Text strong className="text-lg">{currentSong?.name}</Text>
+                        {currentSong && (
+                          <Button
+                            type="text"
+                            icon={isFavorite(currentSong) ? <StarFilled /> : <StarOutlined />}
+                            onClick={() => toggleFavorite(currentSong)}
+                            className="hover:scale-105 transition-transform"
+                          />
+                        )}
+                      </div>
+                      <Text type="secondary">{currentSong?.singer}</Text>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto">
+                    <LyricDisplay 
+                      lyrics={currentSong?.lyrics || []}
+                      currentLyricIndex={currentLyricIndex}
+                      onLyricClick={handleLyricClick}
                     />
                   </div>
-                  
-                  <div className="mt-6 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <Text strong className="text-lg">{currentSong?.name}</Text>
-                      {currentSong && (
-                        <Button
-                          type="text"
-                          icon={isFavorite(currentSong) ? <StarFilled /> : <StarOutlined />}
-                          onClick={() => toggleFavorite(currentSong)}
-                          className="hover:scale-105 transition-transform"
-                        />
-                      )}
-                    </div>
-                    <Text type="secondary">{currentSong?.singer}</Text>
-                  </div>
+                </>
+              ) : (
+                <div className="text-center text-gray-500">
+                  <CustomerServiceOutlined className="text-6xl mb-4 block" />
+                  <p>还没有播放任何歌曲</p>
+                  <p className="text-sm mt-2">搜索并选择一首歌曲开始播放</p>
                 </div>
+              )}
+            </div>
 
-                <div className="flex-1 overflow-y-auto">
-                  <LyricDisplay 
-                    lyrics={currentSong?.lyrics || []}
-                    currentLyricIndex={currentLyricIndex}
-                    onLyricClick={handleLyricClick}
-                  />
-                </div>
-              </>
-            ) : (
-              <div className="text-center text-gray-500">
-                <CustomerServiceOutlined className="text-6xl mb-4 block" />
-                <p>还没有播放任何歌曲</p>
-                <p className="text-sm mt-2">搜索并选择一首歌曲开始播放</p>
+            <div className="h-[120px] flex flex-col justify-end py-4">
+              <div className="flex items-center gap-4">
+                <Text className="w-12 text-right">{formatTime(currentTime)}</Text>
+                <ProgressSlider 
+                  value={currentTime}
+                  max={duration || 100}
+                  onChange={handleSliderChange}
+                  disabled={!currentSong}
+                />
+                <Text className="w-12">{formatTime(duration)}</Text>
               </div>
-            )}
-          </div>
-
-          <div className="h-[120px] flex flex-col justify-end py-4">
-            <div className="flex items-center gap-4">
-              <Text className="w-12 text-right">{formatTime(currentTime)}</Text>
+              
+              <div className="flex justify-center mt-4">
+                <Button 
+                  type="primary" 
+                  shape="circle"
+                  size="middle"
+                  loading={isLoading}
+                  icon={!isLoading && (isPlaying ? (
+                    <PauseCircleOutlined style={{ fontSize: '20px' }} />
+                  ) : (
+                    <PlayCircleOutlined style={{ fontSize: '20px' }} />
+                  ))}
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  disabled={!currentSong}
+                  className="hover:scale-105 transition-transform duration-200 disabled:opacity-50"
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 8px rgba(22, 119, 255, 0.15)',
+                    background: '#1677ff'
+                  }}
+                />
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div 
+            key="collapsed"
+            className="h-full flex items-center px-6 gap-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <Button 
+              type="text"
+              icon={<UpOutlined />}
+              onClick={() => setExpanded(true)}
+              className="hover:scale-105 transition-transform"
+            />
+            
+            <div className="relative w-10 h-10 rounded-full overflow-hidden shadow-sm">
+              {currentSong ? (
+                <motion.img 
+                  src={currentSong.cover || '/default-cover.jpg'} 
+                  alt={currentSong.name}
+                  className="w-full h-full object-cover"
+                  variants={coverVariants}
+                  animate={isPlaying ? "playing" : "paused"}
+                />
+              ) : (
+                <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                  <CustomerServiceOutlined className="text-gray-400" />
+                </div>
+              )}
+            </div>
+            
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-1.5">
+                <Text className="text-sm truncate flex-1 text-gray-800">
+                  {currentSong ? `${currentSong.name} - ${currentSong.singer}` : '未播放任何歌曲'}
+                </Text>
+                {currentSong && (
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={isFavorite(currentSong) ? <StarFilled /> : <StarOutlined />}
+                    onClick={() => toggleFavorite(currentSong)}
+                    className="ml-2 hover:scale-105 transition-transform"
+                  />
+                )}
+                <Text className="text-xs ml-2 whitespace-nowrap text-gray-500">
+                  {formatTime(currentTime)} / {formatTime(duration)}
+                </Text>
+              </div>
               <ProgressSlider 
                 value={currentTime}
                 max={duration || 100}
                 onChange={handleSliderChange}
                 disabled={!currentSong}
               />
-              <Text className="w-12">{formatTime(duration)}</Text>
             </div>
-            
-            <div className="flex justify-center mt-4">
-              <Button 
-                type="primary" 
-                shape="circle"
-                size="middle"
-                loading={isLoading}
-                icon={!isLoading && (isPlaying ? (
-                  <PauseCircleOutlined style={{ fontSize: '20px' }} />
-                ) : (
-                  <PlayCircleOutlined style={{ fontSize: '20px' }} />
-                ))}
-                onClick={() => setIsPlaying(!isPlaying)}
-                disabled={!currentSong}
-                className="hover:scale-105 transition-transform duration-200 disabled:opacity-50"
-                style={{
-                  width: '40px',
-                  height: '40px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 2px 8px rgba(22, 119, 255, 0.15)',
-                  background: '#1677ff'
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="h-full flex items-center px-6 gap-4 animate-fadeIn">
-          <Button 
-            type="text"
-            icon={<UpOutlined />}
-            onClick={() => setExpanded(true)}
-            className="hover:scale-105 transition-transform"
-          />
-          
-          <div className="relative w-10 h-10 rounded-full overflow-hidden shadow-sm">
-            {currentSong ? (
-              <img 
-                src={currentSong.cover || '/default-cover.jpg'} 
-                alt={currentSong.name}
-                className="w-full h-full object-cover"
-                style={coverStyles}
-              />
-            ) : (
-              <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                <CustomerServiceOutlined className="text-gray-400" />
-              </div>
-            )}
-          </div>
-          
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-1.5">
-              <Text className="text-sm truncate flex-1 text-gray-800">
-                {currentSong ? `${currentSong.name} - ${currentSong.singer}` : '未播放任何歌曲'}
-              </Text>
-              {currentSong && (
-                <Button
-                  type="text"
-                  size="small"
-                  icon={isFavorite(currentSong) ? <StarFilled /> : <StarOutlined />}
-                  onClick={() => toggleFavorite(currentSong)}
-                  className="ml-2 hover:scale-105 transition-transform"
-                />
-              )}
-              <Text className="text-xs ml-2 whitespace-nowrap text-gray-500">
-                {formatTime(currentTime)} / {formatTime(duration)}
-              </Text>
-            </div>
-            <ProgressSlider 
-              value={currentTime}
-              max={duration || 100}
-              onChange={handleSliderChange}
-              disabled={!currentSong}
-            />
-          </div>
 
-          <Button 
-            type="primary" 
-            shape="circle"
-            size="middle"
-            loading={isLoading}
-            icon={!isLoading && (isPlaying ? (
-              <PauseCircleOutlined style={{ fontSize: '20px' }} />
-            ) : (
-              <PlayCircleOutlined style={{ fontSize: '20px' }} />
-            ))}
-            onClick={() => setIsPlaying(!isPlaying)}
-            disabled={!currentSong}
-            className="hover:scale-105 transition-transform duration-200 disabled:opacity-50"
-            style={{
-              width: '40px',
-              height: '40px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 2px 8px rgba(22, 119, 255, 0.15)',
-              background: '#1677ff'
-            }}
-          />
-        </div>
-      )}
+            <Button 
+              type="primary" 
+              shape="circle"
+              size="middle"
+              loading={isLoading}
+              icon={!isLoading && (isPlaying ? (
+                <PauseCircleOutlined style={{ fontSize: '20px' }} />
+              ) : (
+                <PlayCircleOutlined style={{ fontSize: '20px' }} />
+              ))}
+              onClick={() => setIsPlaying(!isPlaying)}
+              disabled={!currentSong}
+              className="hover:scale-105 transition-transform duration-200 disabled:opacity-50"
+              style={{
+                width: '40px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 8px rgba(22, 119, 255, 0.15)',
+                background: '#1677ff'
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <audio 
         ref={audioRef}
@@ -436,22 +484,6 @@ export default function GlobalAudioPlayer() {
         preload="auto" // 改为 auto 以预加载音频
         className="hidden"
       />
-
-      <style jsx>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-
-        .animate-fadeIn {
-          animation: fadeIn 0.2s ease-out;
-        }
-
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
-    </div>
+    </motion.div>
   );
 } 

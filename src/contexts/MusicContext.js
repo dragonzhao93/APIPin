@@ -89,17 +89,17 @@ export function MusicProvider({ children }) {
   const onPlaySong = async (song, index, quality) => {
     setIsLoading(true);
     try {
-      // 如果已有 endpoint，直接使用其参数构建请求
       let endpoint;
+      const currentQuality = quality || selectedQuality;
+      
       if (song.endpoint) {
-        const { term, index: songIndex, quality: songQuality } = song.endpoint;
+        const { term, index: songIndex } = song.endpoint;
         endpoint = song.platform === 'qq' 
-          ? musicApi.getSongDetail.qq(term, songIndex, songQuality)
+          ? musicApi.getSongDetail.qq(term, songIndex, currentQuality)
           : musicApi.getSongDetail.wy(term, songIndex);
       } else {
-        // 否则创建新的请求参数
         endpoint = song.platform === 'qq' 
-          ? musicApi.getSongDetail.qq(searchTerm, song.searchIndex, quality)
+          ? musicApi.getSongDetail.qq(searchTerm, song.searchIndex, currentQuality)
           : musicApi.getSongDetail.wy(searchTerm, song.searchIndex);
       }
 
@@ -136,6 +136,11 @@ export function MusicProvider({ children }) {
     }
   };
 
+  // 修改音质选择处理函数
+  const handleQualityChange = (quality) => {
+    setSelectedQuality(quality);
+  };
+
   const value = {
     searchTerm,
     setSearchTerm,
@@ -148,7 +153,7 @@ export function MusicProvider({ children }) {
     view,
     setView,
     selectedQuality,
-    setSelectedQuality,
+    setSelectedQuality: handleQualityChange,
     onSearch,
     onPlaySong,
     playHistory,

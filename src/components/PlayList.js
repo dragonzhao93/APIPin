@@ -71,7 +71,7 @@ export default function PlayList() {
     return (
       <List
         className="overflow-y-auto custom-scrollbar"
-        style={{ maxHeight: 'calc(100vh - 240px)' }}
+        style={{ maxHeight: 'calc(100vh - 300px)' }}
         itemLayout="horizontal"
         dataSource={songs}
         renderItem={(song, index) => (
