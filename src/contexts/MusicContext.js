@@ -8,6 +8,8 @@ import { usePlayQueue } from '@/hooks/usePlayQueue';
 
 const MusicContext = createContext(null);
 
+const CURRENT_SONG_KEY = 'currentPlayingSong';
+
 export function MusicProvider({ children }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [songs, setSongs] = useState([]);
@@ -21,6 +23,39 @@ export function MusicProvider({ children }) {
   const [isLoading, setIsLoading] = useState(false);
   const { queue: playQueue, isInQueue, toggleQueue, clearQueue, getNextSong, getPreviousSong } = usePlayQueue();
   const audioRef = useRef(null);
+  const messageShownRef = useRef(false);
+
+  // 初始化时从 localStorage 读取上次播放的歌曲
+  useEffect(() => {
+    // 如果消息已经显示过，直接返回
+    if (messageShownRef.current) return;
+    
+    try {
+      const savedSong = localStorage.getItem(CURRENT_SONG_KEY);
+      if (savedSong) {
+        const parsedSong = JSON.parse(savedSong);
+        setCurrentSong(parsedSong);
+        // 使用 ref 来确保消息只显示一次
+        if (!messageShownRef.current) {
+          message.info(`上次播放: ${parsedSong.name} - ${parsedSong.singer}`, 3);
+          messageShownRef.current = true;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load last playing song:', error);
+    }
+  }, []); // 只在组件挂载时执行一次
+
+  // 当 currentSong 改变时保存到 localStorage
+  useEffect(() => {
+    if (!currentSong) return;
+    
+    try {
+      localStorage.setItem(CURRENT_SONG_KEY, JSON.stringify(currentSong));
+    } catch (error) {
+      console.error('Failed to save current song:', error);
+    }
+  }, [currentSong]);
 
   // 添加到播放历史
   const addToHistory = (song) => {
@@ -123,7 +158,8 @@ export function MusicProvider({ children }) {
             searchTerm: song.searchTerm || searchTerm,
             searchIndex: song.searchIndex || index,
             details: song.platform === 'qq' ? data.data : null,
-            requestUrl: requestUrl
+            requestUrl: requestUrl,
+            quality: quality // 保存音质信息
           };
 
           if (!updatedSong.url) {
@@ -134,7 +170,14 @@ export function MusicProvider({ children }) {
           updateSongData(updatedSong);
           
           setCurrentSong(updatedSong);
-          setIsPlaying(true);
+          
+          // 如果是从历史记录加载的，不自动播放
+          if (!isRetry && song.fromHistory) {
+            setIsPlaying(false);
+          } else {
+            setIsPlaying(true);
+          }
+          
           addToHistory(updatedSong);
           return true;
         } else {
