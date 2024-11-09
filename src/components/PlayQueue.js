@@ -1,6 +1,6 @@
 'use client';
 
-import { List, Button, Empty } from 'antd';
+import { List, Button, Empty, message } from 'antd';
 import { PlayCircleOutlined, DeleteOutlined, ClearOutlined } from '@ant-design/icons';
 import { useMusic } from '@/contexts/MusicContext';
 import { PlatformTag } from './PlayList'; // 复用 PlayList 中的标签组件
@@ -27,6 +27,16 @@ export default function PlayQueue({ onClose }) {
     onClose?.();
   };
 
+  const handleToggleQueue = (song) => {
+    toggleQueue(song);
+    message.success('已从播放清单移除', 0.5);
+  };
+
+  const handleClearQueue = () => {
+    clearQueue();
+    message.success('已清空播放清单', 0.5);
+  };
+
   if (!playQueue.length) {
     return (
       <Empty description="播放清单为空" className="my-8" />
@@ -40,7 +50,7 @@ export default function PlayQueue({ onClose }) {
         <Button 
           type="text" 
           icon={<ClearOutlined />}
-          onClick={clearQueue}
+          onClick={handleClearQueue}
           size="small"
           danger
         >
@@ -72,7 +82,7 @@ export default function PlayQueue({ onClose }) {
                 size="small"
                 danger
                 icon={<DeleteOutlined />}
-                onClick={() => toggleQueue(song)}
+                onClick={() => handleToggleQueue(song)}
               />
             ]}
           >

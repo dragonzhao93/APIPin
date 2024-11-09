@@ -264,6 +264,7 @@ export function MusicProvider({ children }) {
     playPreviousSong,
     playNextSong,
     audioRef,
+    addToHistory,
   };
 
   return (

@@ -6,6 +6,7 @@ import { PlayCircleOutlined, PauseCircleOutlined, UpOutlined, DownOutlined, Cust
 import LyricDisplay from './LyricDisplay';
 import { useMusic } from '@/contexts/MusicContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useMediaSession } from '@/hooks/useMediaSession';
 
 const { Text } = Typography;
 
@@ -298,6 +299,18 @@ export default function GlobalAudioPlayer() {
       }
     };
   }, [setIsPlaying]);
+
+  // 添加媒体会话支持
+  useMediaSession({
+    currentSong,
+    isPlaying,
+    audioRef,
+    currentLyricIndex,
+    onPlay: () => setIsPlaying(true),
+    onPause: () => setIsPlaying(false),
+    onPrevious: playPreviousSong,
+    onNext: playNextSong
+  });
 
   const renderPlayControls = () => (
     <div className="flex items-center justify-center gap-4">

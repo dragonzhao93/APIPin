@@ -1,32 +1,36 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 
 export function usePlayQueue() {
   const [queue, setQueue] = useLocalStorage('playQueue', []);
+  const [queueMap, setQueueMap] = useState(new Map());
 
-  // 使用内存中的对象来做快速查找，而不是 Map
+  // 使用 useEffect 维护 Map 缓存
+  useEffect(() => {
+    const map = new Map();
+    queue.forEach(song => {
+      const key = `${song.name}-${song.singer}-${song.platform}`;
+      map.set(key, true);
+    });
+    setQueueMap(map);
+  }, [queue]);
+
+  // 使用 Map 做快速查找
   const isInQueue = useCallback((song) => {
     if (!song) return false;
-    return queue.some(s => 
-      s.name === song.name && 
-      s.singer === song.singer && 
-      s.platform === song.platform
-    );
-  }, [queue]);
+    const key = `${song.name}-${song.singer}-${song.platform}`;
+    return queueMap.has(key);
+  }, [queueMap]);
 
   // 优化 toggleQueue 函数
   const toggleQueue = useCallback((song) => {
     if (!song) return;
+    const key = `${song.name}-${song.singer}-${song.platform}`;
     
     setQueue(prev => {
-      const exists = prev.some(s => 
-        s.name === song.name && 
-        s.singer === song.singer && 
-        s.platform === song.platform
-      );
-
+      const exists = queueMap.has(key);
       if (exists) {
         return prev.filter(s => 
           !(s.name === song.name && 
@@ -36,7 +40,7 @@ export function usePlayQueue() {
       }
       return [...prev, { ...song }];
     });
-  }, [setQueue]);
+  }, [setQueue, queueMap]);
 
   // 优化 clearQueue
   const clearQueue = useCallback(() => {

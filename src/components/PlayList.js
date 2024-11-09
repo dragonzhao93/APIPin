@@ -1,7 +1,7 @@
 'use client';
 
 import { useMusic } from '@/contexts/MusicContext';
-import { List, Button, Empty, Tabs, Tag } from 'antd';
+import { List, Button, Empty, Tabs, Tag, message } from 'antd';
 import { 
   PlayCircleOutlined, 
   DeleteOutlined, 
@@ -84,14 +84,20 @@ const QueueButton = ({ song, isInQueue, toggleQueue }) => {
   const [isActive, setIsActive] = useState(isInQueue(song));
 
   const handleClick = () => {
-    setIsActive(!isActive); // 立即更新视觉状态
+    const newState = !isActive;
+    setIsActive(newState); // 立即更新视觉状态
     toggleQueue(song);
+    // 添加 toast 提示
+    message.success(newState ? '已添加到播放清单' : '已从播放清单移除', 0.5);
   };
 
-  // 当实际状态改变时同步
+  // 强制在状态变化时更新
   useEffect(() => {
-    setIsActive(isInQueue(song));
-  }, [isInQueue, song]);
+    const newState = isInQueue(song);
+    if (isActive !== newState) {
+      setIsActive(newState);
+    }
+  }, [isInQueue, song, isActive]);
 
   return (
     <Button
@@ -116,7 +122,8 @@ export default function PlayList() {
     setCurrentSong,
     setIsPlaying,
     isInQueue,
-    toggleQueue
+    toggleQueue,
+    addToHistory,
   } = useMusic();
 
   const [playlists, setPlaylists] = useState({});
@@ -138,9 +145,10 @@ export default function PlayList() {
   // 直接播放已有URL的歌曲
   const handlePlay = (song) => {
     if (song.url) {
-      // 如果有 url，直接播放
+      // 如果有 url，直接播放，同时添加到历史
       setCurrentSong(song);
       setIsPlaying(true);
+      addToHistory(song);
     } else {
       // 没有 url 才需要请求
       onPlaySong(song, song.searchIndex, song.quality);
