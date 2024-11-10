@@ -30,9 +30,24 @@ export async function GET(request) {
   const index = searchParams.get('index');
   const quality = searchParams.get('quality');
 
-  if (!platform || !term) {
+  // 加强参数验证
+  if (!platform || !['qq', 'wy'].includes(platform)) {
     return NextResponse.json(
-      { success: false, error: 'Missing required parameters' },
+      { success: false, error: 'Invalid platform parameter' },
+      { status: 400 }
+    );
+  }
+
+  if (!term || term.trim() === '') {
+    return NextResponse.json(
+      { success: false, error: 'Invalid search term' },
+      { status: 400 }
+    );
+  }
+
+  if (index !== null && (isNaN(index) || index < 0)) {
+    return NextResponse.json(
+      { success: false, error: 'Invalid index parameter' },
       { status: 400 }
     );
   }

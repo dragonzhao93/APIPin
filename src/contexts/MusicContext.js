@@ -65,9 +65,7 @@ export function MusicProvider({ children }) {
         !(s.name === song.name && s.singer === song.singer && s.platform === song.platform)
       );
       
-      // 构建完整的请求URL
-      const requestUrl = `/api/sby?platform=${song.platform}&term=${encodeURIComponent(song.searchTerm || searchTerm)}&index=${song.searchIndex}${selectedQuality ? `&quality=${selectedQuality}` : ''}`;
-      
+      // 直接使用原始的 requestUrl，如果没有才构建新的
       const simplifiedSong = {
         id: song.id,
         name: song.name,
@@ -76,7 +74,7 @@ export function MusicProvider({ children }) {
         url: song.url,
         lyrics: song.lyrics || [],
         platform: song.platform,
-        requestUrl // 替换原来的endpoint对象
+        requestUrl: song.requestUrl || `/api/sby?platform=${song.platform}&term=${encodeURIComponent(song.searchTerm || searchTerm)}&index=${song.searchIndex}${selectedQuality ? `&quality=${selectedQuality}` : ''}`
       };
       
       return [simplifiedSong, ...filtered].slice(0, 50);
@@ -137,12 +135,11 @@ export function MusicProvider({ children }) {
   // 播放歌曲
   const onPlaySong = async (song, index, quality, isRetry = false, fromSearch = false) => {
     if (isLoading && !isRetry) return;
-    
+
     const currentController = new AbortController();
     
     // 检查是否需要中断前一个请求
     if (abortControllerRef.current) {
-      // 如果URL相同且不是重试且不是来自搜索，则跳过
       if (currentSong?.url === song.url && !isRetry && !fromSearch) {
         return;
       }
@@ -150,100 +147,71 @@ export function MusicProvider({ children }) {
     }
     
     abortControllerRef.current = currentController;
-    
-    const MAX_RETRIES = 3;
-    let retryCount = 0;
-    let lastError = null;
 
     // 判断是否应该自动播放
-    // 1. 重试时保持原来的播放状态
-    // 2. 新的播放请求时自动播放
-    // 3. URL相同时保持当前播放状态
     const shouldAutoPlay = isRetry ? isPlaying : true;
-
-    const tryPlay = async () => {
-      try {
-        // 如果是从搜索面板播放，忽略已保存的 requestUrl，始终使用当前音质设置
-        const requestUrl = fromSearch 
-          ? `/api/sby?platform=${song.platform}&term=${encodeURIComponent(song.searchTerm || searchTerm)}&index=${song.searchIndex || index}&quality=${quality}`
-          : (song.requestUrl || `/api/sby?platform=${song.platform}&term=${encodeURIComponent(song.searchTerm || searchTerm)}&index=${song.searchIndex || index}${quality ? `&quality=${quality}` : ''}`);
-        
-        const { success, data } = await fetch(requestUrl, {
-          signal: currentController.signal
-        }).then(r => r.json());
-
-        if (success && data.code === 200) {
-          const newUrl = song.platform === 'qq' ? data.data.url : data.mp3;
-          
-          // URL相同时保持当前状态
-          if (currentSong?.url === newUrl) {
-            return true;
-          }
-
-          const updatedSong = {
-            ...song,
-            id: data.data?.id || song.id,
-            url: newUrl,
-            cover: song.platform === 'qq' ? data.data.cover : data.img,
-            lyrics: song.platform === 'qq' ? [] : (data.lyric || []),
-            searchTerm: song.searchTerm || searchTerm,
-            searchIndex: song.searchIndex || index,
-            details: song.platform === 'qq' ? data.data : null,
-            requestUrl: requestUrl,
-            quality: quality
-          };
-
-          if (!updatedSong.url || !isValidUrl(updatedSong.url)) {
-            throw new Error('无效的音频 URL');
-          }
-
-          updateSongData(updatedSong);
-          setCurrentSong(updatedSong);
-          setIsPlaying(shouldAutoPlay);
-          addToHistory(updatedSong);
-          return true;
-        } else {
-          throw new Error(data.msg || '获取歌曲详情失败');
-        }
-      } catch (error) {
-        if (error.name === 'SecurityError' || error.message.includes('CORS')) {
-          console.error('CORS error detected:', error);
-          message.error('音频加载失败，请尝试其他歌曲');
-          setIsPlaying(false);
-          return false;
-        }
-        
-        if (error.name === 'AbortError') {
-          return false;
-        }
-        
-        lastError = error;
-        return false;
-      }
-    };
 
     setIsLoading(true);
     try {
-      while (retryCount < MAX_RETRIES) {
-        const success = await tryPlay();
-        if (success) return;
+      // 优先使用已存在的 requestUrl
+      const requestUrl = song.requestUrl && !fromSearch
+        ? song.requestUrl
+        : `/api/sby?platform=${song.platform}&term=${encodeURIComponent(searchTerm)}&index=${index}${quality ? `&quality=${quality}` : ''}`;
+
+      // 设置超时
+      const timeoutId = setTimeout(() => {
+        currentController.abort();
+      }, 10000);
+
+      const response = await fetch(requestUrl, {
+        signal: currentController.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      const { success, data } = await response.json();
+
+      if (success && data.code === 200) {
+        const newUrl = song.platform === 'qq' ? data.data.url : data.mp3;
         
-        if (currentController.signal.aborted) {
+        // URL相同时保持当前状态
+        if (currentSong?.url === newUrl) {
           return;
         }
-        
-        retryCount++;
-        if (retryCount < MAX_RETRIES) {
-          message.info(`正在重试 (${retryCount}/${MAX_RETRIES})...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
+
+        const updatedSong = {
+          ...song,
+          id: data.data?.id || song.id,
+          url: newUrl,
+          cover: song.platform === 'qq' ? data.data.cover : data.img,
+          lyrics: song.platform === 'qq' ? [] : (data.lyric || []),
+          searchTerm: song.searchTerm || searchTerm,
+          searchIndex: song.searchIndex || index,
+          details: song.platform === 'qq' ? data.data : null,
+          requestUrl: requestUrl,
+          quality: quality
+        };
+
+        if (!updatedSong.url || !isValidUrl(updatedSong.url)) {
+          throw new Error('无效的音频 URL');
         }
+
+        updateSongData(updatedSong);
+        setCurrentSong(updatedSong);
+        setIsPlaying(shouldAutoPlay);
+        addToHistory(updatedSong);
+      } else {
+        throw new Error(data.msg || '获取歌曲详情失败');
       }
-      throw lastError || new Error('播放失败');
     } catch (error) {
-      if (error.name !== 'AbortError') {
-        console.error('播放失败:', error);
-        message.error(error.message || '播放败，请尝试其他歌曲');
+      if (error.name === 'AbortError') {
+        message.error('请求超时，播放失败');
+      } else if (error.name === 'SecurityError' || error.message.includes('CORS')) {
+        message.error('音频加载失败，请尝试其他歌曲');
+      } else {
+        message.error(error.message || '播放失败，请尝试其他歌曲');
       }
+      setIsPlaying(false);
     } finally {
       if (currentController.signal.aborted) {
         abortControllerRef.current = null;
