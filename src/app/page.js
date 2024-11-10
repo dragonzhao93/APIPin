@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from 'antd';
 import { MusicProvider, useMusic } from '@/contexts/MusicContext';
 import MusicContainer from '@/components/MusicContainer';
@@ -11,7 +11,36 @@ import { AnimatePresence, motion } from 'framer-motion';
 // 创建一个新的内部组件来使用 useMusic
 function HomeContent() {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [countdown, setCountdown] = useState(3);
+  const [hasAgreed, setHasAgreed] = useState(false);
   const { currentSong, isPlaying } = useMusic();
+
+  useEffect(() => {
+    // 检查本地存储中的同意状态
+    const agreed = localStorage.getItem('disclaimer_agreed');
+    setHasAgreed(!!agreed);
+    
+    // 如果没有同意过，显示弹窗
+    if (!agreed) {
+      setIsAboutOpen(true);
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, []);
+
+  const handleAgree = () => {
+    localStorage.setItem('disclaimer_agreed', 'true');
+    setHasAgreed(true);
+    setIsAboutOpen(false);
+  };
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -26,9 +55,12 @@ function HomeContent() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.3 }}
-              className="cursor-pointer hover:opacity-80"
+              className="cursor-pointer hover:opacity-80 text-right"
               onClick={() => setIsAboutOpen(true)}
             >
+              <div className="text-xs text-gray-500 mb-1">
+                {hasAgreed ? '已同意免责声明' : '使用前请点击查看免责声明'}
+              </div>
               <h1 className="text-2xl">APIPin</h1>
             </motion.div>
           )}
@@ -40,12 +72,45 @@ function HomeContent() {
       <GlobalAudioPlayer />
       
       <Modal
-        title="APIPin"
+        title="免责声明 | Disclaimer"
         open={isAboutOpen}
         onCancel={() => setIsAboutOpen(false)}
-        footer={null}
+        footer={[
+          <button
+            key="agree"
+            onClick={() => setIsAboutOpen(false)}
+            className={`w-full py-2 text-white rounded-lg mt-4 ${
+              hasAgreed 
+                ? 'bg-green-500 cursor-default' 
+                : countdown > 0 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-500 hover:bg-blue-600'
+            }`}
+            disabled={!hasAgreed && countdown > 0}
+          >
+            {hasAgreed 
+              ? '已同意' 
+              : countdown > 0 
+                ? `请仔细阅读 (${countdown}s)` 
+                : '我已阅读并同意上述声明'
+            }
+          </button>
+        ]}
+        width={600}
+        maskClosable={hasAgreed}
+        closable={hasAgreed}
       >
         <div className="space-y-4">
+          <div className="p-6 bg-red-50 border-2 border-red-300 rounded-lg">
+            <h3 className="font-bold text-red-800 text-lg mb-3">重要免责声明</h3>
+            <div className="space-y-3 text-red-700">
+              <p>1. 本站仅作为API接口测试和技术学习交流使用，不提供任何音乐存储、下载或付费服务。</p>
+              <p>2. 本站对展示内容的来源不知情，也不对内容的合法性、准确性负责。所有内容版权归版权方所有。</p>
+              <p>3. <strong>继续使用本站即表示您已完全理解并接受</strong>：本站仅供技术研究，若因使用本站造成任何法律纠纷，本项目开发人员概不负责。</p>
+              <p>4. 如果您不同意以上声明，请立即停止使用本站。</p>
+              <p>5. 请支持正版音乐，尊重知识产权。</p>
+            </div>
+          </div>
           <p>现在是一个音乐播放器</p>
           <p>GitHub: <a href="https://github.com/MindMorbius/APIPin" className="text-blue-500 hover:underline">MindMorbius/APIPin</a></p>
         </div>
