@@ -8,6 +8,20 @@ import GlobalAudioPlayer from '@/components/GlobalAudioPlayer';
 import RequestStatusMonitor from '@/components/RequestStatusMonitor';
 import { AnimatePresence, motion } from 'framer-motion';
 
+// 添加 Cookie 工具函数
+const setCookie = (name, value, days = 365) => {
+  const expires = new Date();
+  expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
+};
+
+const getCookie = (name) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+  return null;
+};
+
 // 创建一个新的内部组件来使用 useMusic
 function HomeContent() {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
@@ -16,11 +30,10 @@ function HomeContent() {
   const { currentSong, isPlaying } = useMusic();
 
   useEffect(() => {
-    // 检查本地存储中的同意状态
-    const agreed = localStorage.getItem('disclaimer_agreed');
+    // 改用 Cookie 检查同意状态
+    const agreed = getCookie('disclaimer_agreed');
     setHasAgreed(!!agreed);
     
-    // 如果没有同意过，显示弹窗
     if (!agreed) {
       setIsAboutOpen(true);
       const timer = setInterval(() => {
@@ -37,7 +50,8 @@ function HomeContent() {
   }, []);
 
   const handleAgree = () => {
-    localStorage.setItem('disclaimer_agreed', 'true');
+    // 改用 Cookie 存储同意状态
+    setCookie('disclaimer_agreed', 'true');
     setHasAgreed(true);
     setIsAboutOpen(false);
   };
@@ -78,7 +92,7 @@ function HomeContent() {
         footer={[
           <button
             key="agree"
-            onClick={() => setIsAboutOpen(false)}
+            onClick={handleAgree}
             className={`w-full py-2 text-white rounded-lg mt-4 ${
               hasAgreed 
                 ? 'bg-green-500 cursor-default' 
