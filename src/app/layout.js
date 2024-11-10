@@ -3,6 +3,7 @@ import { ConfigProvider, theme } from 'antd';
 import "./globals.css";
 import 'antd/dist/reset.css';
 import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -37,6 +38,7 @@ export default function RootLayout({ children }) {
         >
           {children}
           <Analytics />
+          <SpeedInsights />
         </ConfigProvider>
       </body>
     </html>
