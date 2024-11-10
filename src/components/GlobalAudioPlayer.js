@@ -274,47 +274,72 @@ export default function GlobalAudioPlayer() {
   });
 
   const renderPlayControls = () => (
-    <div className="flex items-center justify-center gap-4">
-      <Button 
-        type="text"
-        icon={<StepBackwardOutlined />}
+    <div className="flex items-center justify-center gap-3 md:gap-6">
+      {/* 上一首 */}
+      <button
         onClick={playPreviousSong}
         disabled={!currentSong}
-        className="hover:scale-105 transition-transform"
-      />
+        className="w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center
+                   bg-gradient-to-br from-gray-50 to-gray-100
+                   hover:from-gray-100 hover:to-gray-200
+                   active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
+                   transition-all duration-200 group"
+      >
+        <StepBackwardOutlined className="text-gray-600 text-lg md:text-xl 
+                                       group-hover:text-gray-800 transition-colors" />
+      </button>
       
-      <Button 
-        type="primary" 
-        shape="circle"
-        size="middle"
-        loading={isLoading}
-        icon={!isLoading && (isPlaying ? (
-          <PauseCircleOutlined style={{ fontSize: '20px' }} />
-        ) : (
-          <PlayCircleOutlined style={{ fontSize: '20px' }} />
-        ))}
+      {/* 播放/暂停按钮 */}
+      <button
         onClick={() => setIsPlaying(!isPlaying)}
-        disabled={!currentSong}
-        className="hover:scale-105 transition-transform duration-200 disabled:opacity-50"
-        style={{
-          width: '40px',
-          height: '40px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 2px 8px rgba(22, 119, 255, 0.15)',
-          background: '#1677ff'
-        }}
-      />
+        disabled={!currentSong || isLoading}
+        className="w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center
+                   bg-gradient-to-br from-blue-500 to-blue-600
+                   hover:from-blue-600 hover:to-blue-700
+                   active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
+                   transition-all duration-200 shadow-lg hover:shadow-xl
+                   disabled:shadow-none relative overflow-hidden"
+      >
+        {isLoading ? (
+          <div className="w-5 h-5 md:w-6 md:h-6 border-3 border-white/30 
+                         border-t-white rounded-full animate-spin" />
+        ) : (
+          <div className="text-white text-2xl md:text-3xl transition-transform duration-200">
+            {isPlaying ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+          </div>
+        )}
+      </button>
       
-      <Button 
-        type="text"
-        icon={<StepForwardOutlined />}
+      {/* 下一首 */}
+      <button
         onClick={playNextSong}
         disabled={!currentSong}
-        className="hover:scale-105 transition-transform"
-      />
+        className="w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center
+                   bg-gradient-to-br from-gray-50 to-gray-100
+                   hover:from-gray-100 hover:to-gray-200
+                   active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
+                   transition-all duration-200 group"
+      >
+        <StepForwardOutlined className="text-gray-600 text-lg md:text-xl 
+                                      group-hover:text-gray-800 transition-colors" />
+      </button>
     </div>
+  );
+
+  // 收藏按钮样式也可以更新
+  const FavoriteButton = ({ isFavorite, onClick }) => (
+    <button
+      onClick={onClick}
+      className={`w-8 h-8 rounded-full flex items-center justify-center
+                  transition-all duration-200 group hover:scale-110
+                  ${isFavorite ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-500'}`}
+    >
+      {isFavorite ? (
+        <StarFilled className="text-lg transition-transform group-hover:scale-110" />
+      ) : (
+        <StarOutlined className="text-lg transition-transform group-hover:scale-110" />
+      )}
+    </button>
   );
 
   return (
@@ -350,43 +375,42 @@ export default function GlobalAudioPlayer() {
                  style={{ maxHeight: 'calc(100vh - 180px)' }}>
               {currentSong ? (
                 <>
-                  <div className="flex-1 flex flex-col items-center justify-center min-h-[300px]">
-                    <div 
-                      className="relative w-48 h-48 md:w-64 md:h-64 rounded-full overflow-hidden"
-                      style={{
-                        boxShadow: '0 8px 24px rgba(0,0,0,0.12)'
-                      }}
-                    >
-                      <motion.img 
-                        src={currentSong?.cover || '/default-cover.jpg'}
-                        alt={currentSong?.name}
-                        className="w-full h-full object-cover"
-                        variants={coverVariants}
-                        animate={isPlaying ? "playing" : "paused"}
-                      />
-                    </div>
-                    
-                    <div className="mt-6 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <Text strong className="text-lg">{currentSong?.name}</Text>
-                        {currentSong && (
-                          <Button
-                            type="text"
-                            icon={isFavorite(currentSong) ? <StarFilled /> : <StarOutlined />}
-                            onClick={() => toggleFavorite(currentSong)}
-                            className="hover:scale-105 transition-transform"
-                          />
-                        )}
+                  <div className="md:w-1/2 flex-none flex items-center justify-center p-4">
+                    <div className="flex flex-col items-center">
+                      <div 
+                        className="relative w-48 h-48 md:w-64 md:h-64 rounded-full overflow-hidden"
+                        style={{
+                          boxShadow: '0 8px 24px rgba(0,0,0,0.12)'
+                        }}
+                      >
+                        <motion.img 
+                          src={currentSong?.cover || '/default-cover.jpg'}
+                          alt={currentSong?.name}
+                          className="w-full h-full object-cover"
+                          variants={coverVariants}
+                          animate={isPlaying ? "playing" : "paused"}
+                        />
                       </div>
-                      <Text type="secondary">{currentSong?.singer}</Text>
+                      
+                      <div className="mt-6 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <Text strong className="text-lg">{currentSong?.name}</Text>
+                          <FavoriteButton 
+                            isFavorite={isFavorite(currentSong)} 
+                            onClick={() => toggleFavorite(currentSong)}
+                          />
+                        </div>
+                        <Text type="secondary">{currentSong?.singer}</Text>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto">
+                  <div className="md:w-1/2 h-full overflow-hidden">
                     <LyricDisplay 
                       lyrics={currentSong?.lyrics || []}
                       currentLyricIndex={currentLyricIndex}
                       onLyricClick={handleLyricClick}
+                      className="h-full"
                     />
                   </div>
                 </>
@@ -423,69 +447,69 @@ export default function GlobalAudioPlayer() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
-            {/* 主要内容区域 */}
-            <div className="flex items-center px-3 md:px-6 gap-2 md:gap-4 h-[60px]">
-              <Button 
-                type="text"
-                icon={<UpOutlined />}
-                onClick={() => setExpanded(true)}
-                className="hover:scale-105 transition-transform flex-shrink-0"
-              />
-              
-              <div className="relative w-10 h-10 rounded-full overflow-hidden shadow-sm flex-shrink-0">
-                {currentSong ? (
+            {/* 主内容区域 */}
+            <div className="grid grid-cols-[auto_1fr_auto] md:grid-cols-[auto_1fr_auto] 
+                          items-center gap-3 md:gap-6 px-3 md:px-6 h-[60px]">
+              {/* 左侧：展开按钮和封面 */}
+              <div className="flex items-center gap-2 md:gap-3">
+                <Button 
+                  type="text"
+                  icon={<UpOutlined />}
+                  onClick={() => setExpanded(true)}
+                  className="hover:scale-105 transition-transform"
+                />
+                
+                <div className="relative w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden shadow-sm">
                   <motion.img 
-                    src={currentSong.cover || '/default-cover.jpg'} 
-                    alt={currentSong.name}
+                    src={currentSong?.cover || '/default-cover.jpg'}
+                    alt={currentSong?.name}
                     className="w-full h-full object-cover"
                     variants={coverVariants}
                     animate={isPlaying ? "playing" : "paused"}
                   />
-                ) : (
-                  <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                    <CustomerServiceOutlined className="text-gray-400" />
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex-1 min-w-0 flex flex-col justify-center">
-                <div className="flex items-center gap-2">
-                  <Text className="text-sm font-medium truncate">
-                    {currentSong?.name || '未播放任何歌曲'}
-                  </Text>
-                  {currentSong && (
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={isFavorite(currentSong) ? <StarFilled /> : <StarOutlined />}
-                      onClick={() => toggleFavorite(currentSong)}
-                      className="flex-shrink-0 hover:scale-105 transition-transform -ml-1"
-                    />
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Text className="text-xs text-gray-500 truncate">
-                    {currentSong?.singer || '点击播放按钮开始'}
-                  </Text>
-                  <Text className="text-xs text-gray-400 flex-shrink-0">
-                    {formatTime(currentTime)} / {formatTime(duration)}
-                  </Text>
                 </div>
               </div>
 
-              <div className="flex-shrink-0 flex items-center">
+              {/* 中间：歌曲信息 */}
+              <div className="min-w-0 flex flex-col justify-center px-2 md:px-4">
+                <div className="flex items-center gap-2">
+                  <Text className="text-sm md:text-base font-medium truncate">
+                    {currentSong?.name || '未播放任何歌曲'}
+                  </Text>
+                  {currentSong && (
+                    <FavoriteButton 
+                      isFavorite={isFavorite(currentSong)} 
+                      onClick={() => toggleFavorite(currentSong)}
+                    />
+                  )}
+                </div>
+                <Text className="text-xs md:text-sm text-gray-500 truncate">
+                  {currentSong?.singer || '点击播放按钮开始'}
+                </Text>
+              </div>
+
+              {/* 右侧：播放控制 */}
+              <div className="flex-shrink-0">
                 {renderPlayControls()}
               </div>
             </div>
 
-            {/* 进度条区域 */}
-            <div className="px-3 md:px-6 h-[20px] flex items-center">
-              <ProgressSlider 
-                value={currentTime}
-                max={duration || 100}
-                onChange={handleSliderChange}
-                disabled={!currentSong}
-              />
+            {/* 进度条 */}
+            <div className="px-3 md:px-6 h-[20px] flex items-center gap-2">
+              <span className="text-xs text-gray-400 w-10 text-right">
+                {formatTime(currentTime)}
+              </span>
+              <div className="flex-1">
+                <ProgressSlider 
+                  value={currentTime}
+                  max={duration || 100}
+                  onChange={handleSliderChange}
+                  disabled={!currentSong}
+                />
+              </div>
+              <span className="text-xs text-gray-400 w-10">
+                {formatTime(duration)}
+              </span>
             </div>
           </motion.div>
         )}
