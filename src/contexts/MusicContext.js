@@ -24,6 +24,7 @@ export function MusicProvider({ children }) {
   const { queue: playQueue, isInQueue, toggleQueue, clearQueue, getNextSong, getPreviousSong } = usePlayQueue();
   const audioRef = useRef(null);
   const messageShownRef = useRef(false);
+  const abortControllerRef = useRef(null);
 
   // 初始化时从 localStorage 读取上次播放的歌曲
   useEffect(() => {
@@ -138,6 +139,14 @@ export function MusicProvider({ children }) {
     // 如果正在加载中且不是重试，则跳过
     if (isLoading && !isRetry) return;
     
+    // 如果存在之前的请求，则中断它
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // 创建新的 AbortController
+    abortControllerRef.current = new AbortController();
+    
     const maxRetries = 3;
     let retryCount = 0;
     let lastError = null;
@@ -146,7 +155,9 @@ export function MusicProvider({ children }) {
       try {
         const requestUrl = song.requestUrl || `/api/sby?platform=${song.platform}&term=${encodeURIComponent(song.searchTerm || searchTerm)}&index=${song.searchIndex || index}${quality ? `&quality=${quality}` : ''}`;
         
-        const { success, data } = await fetch(requestUrl).then(r => r.json());
+        const { success, data } = await fetch(requestUrl, {
+          signal: abortControllerRef.current.signal
+        }).then(r => r.json());
 
         if (success && data.code === 200) {
           const updatedSong = {
@@ -184,6 +195,10 @@ export function MusicProvider({ children }) {
           throw new Error(data.msg || '获取歌曲详情失败');
         }
       } catch (error) {
+        // 如果是中断错误，直接返回
+        if (error.name === 'AbortError') {
+          return false;
+        }
         lastError = error;
         return false;
       }
@@ -194,14 +209,25 @@ export function MusicProvider({ children }) {
       while (retryCount < maxRetries) {
         const success = await tryPlay();
         if (success) return;
+        // 如果请求被中断，直接退出重试循环
+        if (abortControllerRef.current?.signal.aborted) {
+          return;
+        }
         retryCount++;
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
       throw lastError || new Error('播放失败');
     } catch (error) {
-      console.error('播放失败:', error);
-      message.error(error.message || '播放失败');
+      // 只有在非中断错误时才显示错误消息
+      if (error.name !== 'AbortError') {
+        console.error('播放失败:', error);
+        message.error(error.message || '播放失败');
+      }
     } finally {
+      // 只有当当前 controller 没有被新的替换时才重置 loading 状态
+      if (abortControllerRef.current?.signal.aborted) {
+        abortControllerRef.current = null;
+      }
       setIsLoading(false);
     }
   };

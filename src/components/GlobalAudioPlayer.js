@@ -138,6 +138,8 @@ export default function GlobalAudioPlayer() {
   const [duration, setDuration] = useState(0);
   const [currentLyricIndex, setCurrentLyricIndex] = useState(-1);
 
+  const isHandlingErrorRef = useRef(false); // 使用 ref 来跨渲染周期跟踪状态
+
   useEffect(() => {
     const audioElement = audioRef.current;
     
@@ -158,88 +160,43 @@ export default function GlobalAudioPlayer() {
     };
   }, [currentSong?.url]);
 
-  useEffect(() => {
-    if (currentSong?.url) {
-      // 当有新的歌曲时，等待音频加载完成后播放
-      const audioElement = audioRef.current;
-      audioElement.load(); // 强制重新加载
-      
-      const playWhenReady = () => {
-        audioElement.play()
-          .then(() => {
-            setIsPlaying(true);
-          })
-          .catch(error => {
-            console.error('Playback failed:', error);
-            setIsPlaying(false);
-          });
-      };
-
-      audioElement.addEventListener('loadeddata', playWhenReady);
-      return () => {
-        audioElement.removeEventListener('loadeddata', playWhenReady);
-      };
-    } else {
-      setIsPlaying(false);
-    }
-  }, [currentSong?.url, setIsPlaying]);
-
+  // 合并所有音频相关的事件处理
   useEffect(() => {
     const audioElement = audioRef.current;
     if (!audioElement) return;
 
-    const playWithRetry = async () => {
-      try {
-        await audioElement.play();
-      } catch (error) {
-        console.error('Playback error:', error);
-        // 检查是否为 CORS 错误
-        if (error.name === 'NotAllowedError' || error.name === 'NotSupportedError' || 
-            error.message.includes('CORS') || error.message.includes('cross-origin')) {
-          // CORS 错误，直接重新获取
-          if (currentSong?.requestUrl) {
-            onPlaySong(currentSong, currentSong.searchIndex, currentSong.quality, true);
-          }
-        } else {
-          setIsPlaying(false);
-        }
+    const handleError = (error) => {
+      if (isHandlingErrorRef.current) return; // 使用 ref 检查
+      isHandlingErrorRef.current = true;
+      
+      console.error('Audio error:', error);
+      if (currentSong?.requestUrl) {
+        onPlaySong(currentSong, currentSong.searchIndex, currentSong.quality, true);
+      } else {
+        setIsPlaying(false);
+      }
+      
+      // 重置标志位
+      setTimeout(() => {
+        isHandlingErrorRef.current = false;
+      }, 1000);
+    };
+
+    const handlePlay = () => {
+      if (isPlaying && !isHandlingErrorRef.current) {
+        audioElement.play().catch(handleError);
+      } else {
+        audioElement.pause();
       }
     };
 
-    let playTimeout;
-    if (isPlaying) {
-      // 添加错误事件监听
-      const handleError = (error) => {
-        console.error('Audio error:', error);
-        if (currentSong?.requestUrl) {
-          onPlaySong(currentSong, currentSong.searchIndex, currentSong.quality, true);
-        } else {
-          setIsPlaying(false);
-        }
-      };
+    audioElement.addEventListener('error', handleError);
+    handlePlay();
 
-      audioElement.addEventListener('error', handleError);
-      
-      playTimeout = setTimeout(() => {
-        if (audioElement.readyState === 0) {
-          if (currentSong?.requestUrl) {
-            onPlaySong(currentSong, currentSong.searchIndex, currentSong.quality, true);
-          } else {
-            setIsPlaying(false);
-          }
-        }
-      }, 5000);
-
-      playWithRetry();
-
-      return () => {
-        clearTimeout(playTimeout);
-        audioElement.removeEventListener('error', handleError);
-      };
-    } else {
-      audioElement.pause();
-    }
-  }, [isPlaying, currentSong, onPlaySong, setIsPlaying]);
+    return () => {
+      audioElement.removeEventListener('error', handleError);
+    };
+  }, [isPlaying, currentSong, onPlaySong]);
 
   const handleSliderChange = (value) => {
     audioRef.current.currentTime = value;

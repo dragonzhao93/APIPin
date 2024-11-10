@@ -16,7 +16,7 @@ const geistMono = localFont({
 
 export const metadata = {
   title: "APIPin | 现在音乐",
-  description: "一个简单的API学习站",
+  description: "API功能站：现在支持多平台音乐搜索与播放",
 };
 
 export default function RootLayout({ children }) {
