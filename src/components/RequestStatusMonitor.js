@@ -213,7 +213,10 @@ export default function RequestStatusMonitor() {
   const getMessageArray = () => {
     // 如果有歌词且正在播放，优先显示当前歌词
     if (currentSong?.lyrics?.length && isPlaying && currentLyricIndex !== -1) {
-      return [currentSong.lyrics[currentLyricIndex].name];
+      const currentLyric = currentSong.lyrics[currentLyricIndex];
+      if (currentLyric?.name) {
+        return [currentLyric.name];
+      }
     }
 
     if (stats.total === 0) return ['等待用户指令...'];
@@ -413,7 +416,7 @@ export default function RequestStatusMonitor() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="text-sm text-gray-600 max-w-[200px] truncate"
+            className="text-sm text-gray-600"
           >
             {displayedText}
             {isTyping && (

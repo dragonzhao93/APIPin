@@ -136,69 +136,84 @@ export function MusicProvider({ children }) {
 
   // 播放歌曲
   const onPlaySong = async (song, index, quality, isRetry = false) => {
-    // 如果正在加载中且不是重试，则跳过
     if (isLoading && !isRetry) return;
     
-    // 如果存在之前的请求，则中断它
+    const currentController = new AbortController();
+    
+    // 检查是否需要中断前一个请求
     if (abortControllerRef.current) {
+      // 如果URL相同且不是重试，则跳过
+      if (currentSong?.url === song.url && !isRetry) {
+        return;
+      }
       abortControllerRef.current.abort();
     }
     
-    // 创建新的 AbortController
-    abortControllerRef.current = new AbortController();
+    abortControllerRef.current = currentController;
     
-    const maxRetries = 3;
+    const MAX_RETRIES = 3;
     let retryCount = 0;
     let lastError = null;
+
+    // 判断是否应该自动播放
+    // 1. 重试时保持原来的播放状态
+    // 2. 新的播放请求时自动播放
+    // 3. URL相同时保持当前播放状态
+    const shouldAutoPlay = isRetry ? isPlaying : true;
 
     const tryPlay = async () => {
       try {
         const requestUrl = song.requestUrl || `/api/sby?platform=${song.platform}&term=${encodeURIComponent(song.searchTerm || searchTerm)}&index=${song.searchIndex || index}${quality ? `&quality=${quality}` : ''}`;
         
         const { success, data } = await fetch(requestUrl, {
-          signal: abortControllerRef.current.signal
+          signal: currentController.signal
         }).then(r => r.json());
 
         if (success && data.code === 200) {
+          const newUrl = song.platform === 'qq' ? data.data.url : data.mp3;
+          
+          // URL相同时保持当前状态
+          if (currentSong?.url === newUrl) {
+            return true;
+          }
+
           const updatedSong = {
             ...song,
             id: data.data?.id || song.id,
-            url: song.platform === 'qq' ? data.data.url : data.mp3,
+            url: newUrl,
             cover: song.platform === 'qq' ? data.data.cover : data.img,
             lyrics: song.platform === 'qq' ? [] : (data.lyric || []),
             searchTerm: song.searchTerm || searchTerm,
             searchIndex: song.searchIndex || index,
             details: song.platform === 'qq' ? data.data : null,
             requestUrl: requestUrl,
-            quality: quality // 保存音质信息
+            quality: quality
           };
 
-          if (!updatedSong.url) {
-            throw new Error('Invalid audio URL');
+          if (!updatedSong.url || !isValidUrl(updatedSong.url)) {
+            throw new Error('无效的音频 URL');
           }
 
-          // 更新历史记录和播放列表中的数据
           updateSongData(updatedSong);
-          
           setCurrentSong(updatedSong);
-          
-          // 如果是从历史记录加载的，不自动播放
-          if (!isRetry && song.fromHistory) {
-            setIsPlaying(false);
-          } else {
-            setIsPlaying(true);
-          }
-          
+          setIsPlaying(shouldAutoPlay);
           addToHistory(updatedSong);
           return true;
         } else {
           throw new Error(data.msg || '获取歌曲详情失败');
         }
       } catch (error) {
-        // 如果是中断错误，直接返回
+        if (error.name === 'SecurityError' || error.message.includes('CORS')) {
+          console.error('CORS error detected:', error);
+          message.error('音频加载失败，请尝试其他歌曲');
+          setIsPlaying(false);
+          return false;
+        }
+        
         if (error.name === 'AbortError') {
           return false;
         }
+        
         lastError = error;
         return false;
       }
@@ -206,26 +221,28 @@ export function MusicProvider({ children }) {
 
     setIsLoading(true);
     try {
-      while (retryCount < maxRetries) {
+      while (retryCount < MAX_RETRIES) {
         const success = await tryPlay();
         if (success) return;
-        // 如果请求被中断，直接退出重试循环
-        if (abortControllerRef.current?.signal.aborted) {
+        
+        if (currentController.signal.aborted) {
           return;
         }
+        
         retryCount++;
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        if (retryCount < MAX_RETRIES) {
+          message.info(`正在重试 (${retryCount}/${MAX_RETRIES})...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
       throw lastError || new Error('播放失败');
     } catch (error) {
-      // 只有在非中断错误时才显示错误消息
       if (error.name !== 'AbortError') {
         console.error('播放失败:', error);
-        message.error(error.message || '播放失败');
+        message.error(error.message || '播放���败，请尝试其他歌曲');
       }
     } finally {
-      // 只有当当前 controller 没有被新的替换时才重置 loading 状态
-      if (abortControllerRef.current?.signal.aborted) {
+      if (currentController.signal.aborted) {
         abortControllerRef.current = null;
       }
       setIsLoading(false);
@@ -410,3 +427,13 @@ export const useMusic = () => {
   }
   return context;
 }; 
+
+// 添加 URL 验证辅助函数
+function isValidUrl(url) {
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+}

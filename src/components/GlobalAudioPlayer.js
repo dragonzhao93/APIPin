@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Button, Slider, Typography, Drawer } from 'antd';
+import { Button, Slider, Typography, Drawer, message } from 'antd';
 import { PlayCircleOutlined, PauseCircleOutlined, UpOutlined, DownOutlined, CustomerServiceOutlined, StarOutlined, StarFilled, StepBackwardOutlined, StepForwardOutlined } from '@ant-design/icons';
 import LyricDisplay from './LyricDisplay';
 import { useMusic } from '@/contexts/MusicContext';
@@ -166,17 +166,21 @@ export default function GlobalAudioPlayer() {
     if (!audioElement) return;
 
     const handleError = (error) => {
-      if (isHandlingErrorRef.current) return; // 使用 ref 检查
+      if (isHandlingErrorRef.current) return;
       isHandlingErrorRef.current = true;
       
       console.error('Audio error:', error);
-      if (currentSong?.requestUrl) {
+      
+      // 检查是否为 CORS 错误
+      if (error.target?.error?.code === 18 || error.target?.error?.message?.includes('CORS')) {
+        setIsPlaying(false);
+        message.error('音频加载失败，请尝试其他歌曲');
+      } else if (currentSong?.requestUrl) {
         onPlaySong(currentSong, currentSong.searchIndex, currentSong.quality, true);
       } else {
         setIsPlaying(false);
       }
       
-      // 重置标志位
       setTimeout(() => {
         isHandlingErrorRef.current = false;
       }, 1000);
