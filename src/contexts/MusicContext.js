@@ -135,15 +135,15 @@ export function MusicProvider({ children }) {
   };
 
   // 播放歌曲
-  const onPlaySong = async (song, index, quality, isRetry = false) => {
+  const onPlaySong = async (song, index, quality, isRetry = false, fromSearch = false) => {
     if (isLoading && !isRetry) return;
     
     const currentController = new AbortController();
     
     // 检查是否需要中断前一个请求
     if (abortControllerRef.current) {
-      // 如果URL相同且不是重试，则跳过
-      if (currentSong?.url === song.url && !isRetry) {
+      // 如果URL相同且不是重试且不是来自搜索，则跳过
+      if (currentSong?.url === song.url && !isRetry && !fromSearch) {
         return;
       }
       abortControllerRef.current.abort();
@@ -163,7 +163,10 @@ export function MusicProvider({ children }) {
 
     const tryPlay = async () => {
       try {
-        const requestUrl = song.requestUrl || `/api/sby?platform=${song.platform}&term=${encodeURIComponent(song.searchTerm || searchTerm)}&index=${song.searchIndex || index}${quality ? `&quality=${quality}` : ''}`;
+        // 如果是从搜索面板播放，忽略已保存的 requestUrl，始终使用当前音质设置
+        const requestUrl = fromSearch 
+          ? `/api/sby?platform=${song.platform}&term=${encodeURIComponent(song.searchTerm || searchTerm)}&index=${song.searchIndex || index}&quality=${quality}`
+          : (song.requestUrl || `/api/sby?platform=${song.platform}&term=${encodeURIComponent(song.searchTerm || searchTerm)}&index=${song.searchIndex || index}${quality ? `&quality=${quality}` : ''}`);
         
         const { success, data } = await fetch(requestUrl, {
           signal: currentController.signal
@@ -239,7 +242,7 @@ export function MusicProvider({ children }) {
     } catch (error) {
       if (error.name !== 'AbortError') {
         console.error('播放失败:', error);
-        message.error(error.message || '播放���败，请尝试其他歌曲');
+        message.error(error.message || '播放败，请尝试其他歌曲');
       }
     } finally {
       if (currentController.signal.aborted) {

@@ -199,7 +199,7 @@ export default function SearchPanel({ showSearchInput = true }) {
               <Button 
                 type="text" 
                 icon={<PlayCircleOutlined />} 
-                onClick={() => onPlaySong(song, song.searchIndex, selectedQuality)}
+                onClick={() => onPlaySong(song, song.searchIndex, selectedQuality, false, true)}
                 loading={isLoading && currentSong?.name === song.name}
               >
                 播放
