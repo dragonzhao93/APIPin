@@ -171,26 +171,46 @@ export default function GlobalAudioPlayer() {
       
       console.error('Audio error:', error);
       
-      // 检查是否为 CORS 错误
-      if (error.target?.error?.code === 18 || error.target?.error?.message?.includes('CORS')) {
+      // 检查错误类型
+      const errorCode = error.target?.error?.code;
+      const errorMessage = error.target?.error?.message || error.message || '';
+      
+      // CORS 错误或网络错误
+      if (errorCode === 18 || 
+          errorMessage.includes('CORS') || 
+          errorCode === 2 || // NETWORK_ERR
+          errorMessage.includes('network')) {
         setIsPlaying(false);
         message.error('音频加载失败，请尝试其他歌曲');
-      } else if (currentSong?.requestUrl) {
+      } 
+      // 如果有 requestUrl，尝试重新请求
+      else if (currentSong?.requestUrl) {
         onPlaySong(currentSong, currentSong.searchIndex, currentSong.quality, true);
-      } else {
+      } 
+      // 其他错误
+      else {
         setIsPlaying(false);
+        message.error('播放出错，请稍后重试');
       }
       
+      // 重置错误处理状态
       setTimeout(() => {
         isHandlingErrorRef.current = false;
       }, 1000);
     };
 
     const handlePlay = () => {
+      if (!audioRef.current) return;
+
       if (isPlaying && !isHandlingErrorRef.current) {
-        audioElement.play().catch(handleError);
+        audioRef.current.play().catch(err => {
+          // 只处理真正的播放错误
+          if (err.name !== 'AbortError') {
+            handleError(err);
+          }
+        });
       } else {
-        audioElement.pause();
+        audioRef.current.pause();
       }
     };
 

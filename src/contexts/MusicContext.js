@@ -58,26 +58,58 @@ export function MusicProvider({ children }) {
     }
   }, [currentSong]);
 
-  // 添加到播放历史
+  // 添加 URL 格式化函数
+  const formatRequestUrl = (song, searchTerm = '', index = 0) => {
+    // 如果没有 requestUrl，根据平台构建
+    if (!song.requestUrl) {
+      const term = encodeURIComponent(searchTerm || `${song.name} ${song.singer}`);
+      return song.platform === 'qq' 
+        ? `/qqdg/?word=${term}&n=${index}`
+        : `/wydg/?msg=${term}&n=${index}`;
+    }
+
+    // 处理旧格式 URL
+    if (isOldRequestUrl(song.requestUrl)) {
+      const url = new URL(song.requestUrl, 'http://example.com');
+      const term = url.searchParams.get('term') || `${song.name} ${song.singer}`;
+      const n = url.searchParams.get('n') || '1';
+      return song.platform === 'qq'
+        ? `/qqdg/?word=${encodeURIComponent(term)}&n=${n}`
+        : `/wydg/?msg=${encodeURIComponent(term)}&n=${n}`;
+    }
+
+    // 已经是新格式，但可能缺少参数
+    try {
+      const url = new URL(song.requestUrl, 'http://example.com');
+      const term = url.searchParams.get(song.platform === 'qq' ? 'word' : 'msg') 
+        || `${song.name} ${song.singer}`;
+      const n = url.searchParams.get('n') || '1';
+      
+      return song.platform === 'qq'
+        ? `/qqdg/?word=${encodeURIComponent(term)}&n=${n}`
+        : `/wydg/?msg=${encodeURIComponent(term)}&n=${n}`;
+    } catch {
+      // URL 解析失败，创建新的
+      const term = encodeURIComponent(`${song.name} ${song.singer}`);
+      return song.platform === 'qq'
+        ? `/qqdg/?word=${term}&n=1`
+        : `/wydg/?msg=${term}&n=1`;
+    }
+  };
+
+  // 修改 addToHistory 函数
   const addToHistory = (song) => {
     setPlayHistory(prev => {
       const filtered = prev.filter(s => 
         !(s.name === song.name && s.singer === song.singer && s.platform === song.platform)
       );
       
-      // 直接使用原始的 requestUrl，如果没有才构建新的
-      const simplifiedSong = {
-        id: song.id,
-        name: song.name,
-        singer: song.singer,
-        cover: song.cover,
-        url: song.url,
-        lyrics: song.lyrics || [],
-        platform: song.platform,
-        requestUrl: song.requestUrl || `/api/sby?platform=${song.platform}&term=${encodeURIComponent(song.searchTerm || searchTerm)}&index=${song.searchIndex}${selectedQuality ? `&quality=${selectedQuality}` : ''}`
+      const updatedSong = {
+        ...song,
+        requestUrl: formatRequestUrl(song, searchTerm, song.searchIndex)
       };
       
-      return [simplifiedSong, ...filtered].slice(0, 50);
+      return [updatedSong, ...filtered].slice(0, 50);
     });
   };
 
@@ -96,30 +128,32 @@ export function MusicProvider({ children }) {
     setIsSearching(true);
     try {
       const [wyResult, qqResult] = await Promise.all([
-        fetch(`/api/sby?platform=wy&term=${encodeURIComponent(searchTerm)}`).then(r => r.json()),
-        fetch(`/api/sby?platform=qq&term=${encodeURIComponent(searchTerm)}`).then(r => r.json())
+        fetch(`${process.env.NEXT_PUBLIC_SBY_API_URL}/wydg/?msg=${encodeURIComponent(searchTerm)}`).then(r => r.json()),
+        fetch(`${process.env.NEXT_PUBLIC_SBY_API_URL}/qqdg/?word=${encodeURIComponent(searchTerm)}`).then(r => r.json())
       ]);
 
       const combinedSongs = [];
       
-      if (wyResult.success && wyResult.data.code === 200) {
-        combinedSongs.push(...wyResult.data.data.map((song, index) => ({
+      if (wyResult.code === 200) {
+        combinedSongs.push(...wyResult.data.map((song, index) => ({
           ...song,
           platform: 'wy',
           name: song.name || song.song,
           singer: song.singer || song.author,
-          searchIndex: index
+          searchIndex: index,
+          requestUrl: `/wydg/?msg=${encodeURIComponent(searchTerm)}&n=${index + 1}`
         })));
       }
 
-      if (qqResult.success && qqResult.data.code === 200) {
-        const qqSongs = Array.isArray(qqResult.data.data) ? qqResult.data.data : [qqResult.data.data];
+      if (qqResult.code === 200) {
+        const qqSongs = Array.isArray(qqResult.data) ? qqResult.data : [qqResult.data];
         combinedSongs.push(...qqSongs.map((song, index) => ({
           ...song,
           platform: 'qq',
           name: song.song,
           singer: song.singer,
-          searchIndex: index
+          searchIndex: index,
+          requestUrl: `/qqdg/?word=${encodeURIComponent(searchTerm)}&n=${index + 1}`
         })));
       }
 
@@ -132,33 +166,29 @@ export function MusicProvider({ children }) {
     }
   };
 
-  // 播放歌曲
+  // 修改 onPlaySong 函数
   const onPlaySong = async (song, index, quality, isRetry = false, fromSearch = false) => {
     if (isLoading && !isRetry) return;
 
+    // 如果有 URL 且不是重试，直接播放
+    if (song.url && !isRetry) {
+      setCurrentSong(song);
+      setIsPlaying(true);
+      return;
+    }
+
     const currentController = new AbortController();
-    
-    // 检查是否需要中断前一个请求
     if (abortControllerRef.current) {
-      if (currentSong?.url === song.url && !isRetry && !fromSearch) {
-        return;
-      }
       abortControllerRef.current.abort();
     }
-    
     abortControllerRef.current = currentController;
-
-    // 判断是否应该自动播放
-    const shouldAutoPlay = isRetry ? isPlaying : true;
 
     setIsLoading(true);
     try {
-      // 优先使用已存在的 requestUrl
-      const requestUrl = song.requestUrl && !fromSearch
-        ? song.requestUrl
-        : `/api/sby?platform=${song.platform}&term=${encodeURIComponent(searchTerm)}&index=${index}${quality ? `&quality=${quality}` : ''}`;
+      // 格式化 requestUrl
+      const formattedRequestUrl = formatRequestUrl(song, searchTerm, index);
+      const requestUrl = `${process.env.NEXT_PUBLIC_SBY_API_URL}${formattedRequestUrl}${quality ? `&q=${quality}` : ''}`;
 
-      // 设置超时
       const timeoutId = setTimeout(() => {
         currentController.abort();
       }, 10000);
@@ -169,26 +199,19 @@ export function MusicProvider({ children }) {
       
       clearTimeout(timeoutId);
       
-      const { success, data } = await response.json();
+      const data = await response.json();
 
-      if (success && data.code === 200) {
-        const newUrl = song.platform === 'qq' ? data.data.url : data.mp3;
-        
-        // URL相同时保持当前状态
-        if (currentSong?.url === newUrl) {
-          return;
-        }
-
+      if (data.code === 200) {
         const updatedSong = {
           ...song,
           id: data.data?.id || song.id,
-          url: newUrl,
+          url: song.platform === 'qq' ? data.data.url : data.mp3,
           cover: song.platform === 'qq' ? data.data.cover : data.img,
           lyrics: song.platform === 'qq' ? [] : (data.lyric || []),
           searchTerm: song.searchTerm || searchTerm,
           searchIndex: song.searchIndex || index,
           details: song.platform === 'qq' ? data.data : null,
-          requestUrl: requestUrl,
+          requestUrl: formattedRequestUrl,
           quality: quality
         };
 
@@ -198,7 +221,7 @@ export function MusicProvider({ children }) {
 
         updateSongData(updatedSong);
         setCurrentSong(updatedSong);
-        setIsPlaying(shouldAutoPlay);
+        setIsPlaying(isRetry ? isPlaying : true);
         addToHistory(updatedSong);
       } else {
         throw new Error(data.msg || '获取歌曲详情失败');
@@ -222,28 +245,29 @@ export function MusicProvider({ children }) {
 
   // 更新所有相关列表中的歌曲数据
   const updateSongData = (updatedSong) => {
-    // 更新播放历史
+    // 更新播放历史 - 使用完全匹配
     setPlayHistory(prev => prev.map(song => 
-      isSameSong(song, updatedSong) ? { ...updatedSong } : song
+      isSameSong(song, updatedSong) && song.requestUrl === updatedSong.requestUrl 
+        ? { ...updatedSong } 
+        : song
     ));
 
-    // 更新播放队列
-    if (playQueue.some(song => isSameSong(song, updatedSong))) {
+    // 更新播放队列 - 使用完全匹配
+    if (playQueue.some(song => isSameSong(song, updatedSong) && song.requestUrl === updatedSong.requestUrl)) {
       toggleQueue(updatedSong);
       toggleQueue(updatedSong);
     }
 
-    // 更新搜索结果
-    setSongs(prev => prev.map(song => 
-      isSameSong(song, updatedSong) ? { ...updatedSong } : song
-    ));
+    // 搜索结果不需要更新
+    // 删除 setSongs 的更新
   };
 
-  // 判断是否为同一首歌
+  // 修改判断是否为同一首歌的逻辑
   const isSameSong = (song1, song2) => {
     return song1.name === song2.name && 
            song1.singer === song2.singer && 
-           song1.platform === song2.platform;
+           song1.platform === song2.platform &&
+           (!song1.requestUrl || !song2.requestUrl || song1.requestUrl === song2.requestUrl);
   };
 
   // 修改音质选择处理函数
@@ -408,3 +432,8 @@ function isValidUrl(url) {
     return false;
   }
 }
+
+// 在 MusicProvider 中添加辅助函数
+const isOldRequestUrl = (url) => {
+  return url?.startsWith('/api/sby');
+};
