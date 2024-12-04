@@ -85,7 +85,7 @@ export function MusicProvider({ children }) {
 			const url = new URL(song.requestUrl, "http://example.com");
 			const term =
 				url.searchParams.get("term") || `${song.name} ${song.singer}`;
-			const n = url.searchParams.get("n") || "1";
+			const n = url.searchParams.get("n") || index;
 			return song.platform === "qq"
 				? `?platform=qq&term=${encodeURIComponent(term)}&index=${n}`
 				: `?platform=wy&term=${encodeURIComponent(term)}&index=${n}`;
@@ -97,7 +97,7 @@ export function MusicProvider({ children }) {
 			const term =
 				url.searchParams.get(song.platform === "qq" ? "word" : "msg") ||
 				`${song.name} ${song.singer}`;
-			const n = url.searchParams.get("n") || "1";
+			const n = url.searchParams.get("n") || index;
 
 			return song.platform === "qq"
 				? `?platform=qq&term=${encodeURIComponent(term)}&index=${n}`
@@ -106,8 +106,8 @@ export function MusicProvider({ children }) {
 			// URL 解析失败，创建新的
 			const term = encodeURIComponent(`${song.name} ${song.singer}`);
 			return song.platform === "qq"
-				? `?platform=qq&term=${term}&index=1`
-				: `?platform=term=${term}&index=1`;
+				? `?platform=qq&term=${term}&index=${index || 1}`
+				: `?platform=term=${term}&index=${index || 1}`;
 		}
 	};
 
@@ -213,7 +213,6 @@ export function MusicProvider({ children }) {
 		fromSearch = false
 	) => {
 		if (isLoading && !isRetry) return;
-
 		// 如果有 URL 且不是重试，直接播放
 		if (song.url && !isRetry) {
 			setCurrentSong(song);
@@ -340,6 +339,7 @@ export function MusicProvider({ children }) {
 	// 监听歌曲播放结束,自动播放下一首
 	useEffect(() => {
 		if (!isPlaying && currentSong && !isLoading && audioRef.current?.ended) {
+			debugger;
 			const nextSong = getNextSong(currentSong);
 			if (nextSong) {
 				if (nextSong.url) {
